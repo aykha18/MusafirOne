@@ -1,0 +1,19 @@
+[
+  { "id": "1", "name": "Mumbai", "country": "India", "code": "BOM" },
+  { "id": "2", "name": "Delhi", "country": "India", "code": "DEL" },
+  { "id": "3", "name": "Bangalore", "country": "India", "code": "BLR" },
+  { "id": "4", "name": "Chennai", "country": "India", "code": "MAA" },
+  { "id": "5", "name": "Hyderabad", "country": "India", "code": "HYD" },
+  { "id": "6", "name": "Dubai", "country": "UAE", "code": "DXB" },
+  { "id": "7", "name": "Abu Dhabi", "country": "UAE", "code": "AUH" },
+  { "id": "8", "name": "Sharjah", "country": "UAE", "code": "SHJ" },
+  { "id": "9", "name": "Dammam", "country": "Saudi Arabia", "code": "DMM" },
+  { "id": "10", "name": "Riyadh", "country": "Saudi Arabia", "code": "RUH" },
+  { "id": "11", "name": "Jeddah", "country": "Saudi Arabia", "code": "JED" },
+  { "id": "12", "name": "London", "country": "UK", "code": "LHR" },
+  { "id": "13", "name": "New York", "country": "USA", "code": "JFK" },
+  { "id": "14", "name": "Singapore", "country": "Singapore", "code": "SIN" },
+  { "id": "15", "name": "Kochi", "country": "India", "code": "COK" },
+  { "id": "16", "name": "Thiruvananthapuram", "country": "India", "code": "TRV" },
+  { "id": "17", "name": "Kozhikode", "country": "India", "code": "CCJ" }
+]

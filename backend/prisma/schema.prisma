@@ -1,0 +1,280 @@
+generator client {
+  provider = "prisma-client-js"
+  engineType = "client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id                 String                  @id @default(uuid())
+  phoneNumber        String                  @unique
+  fullName           String
+  city               String
+  corridor           String
+  verificationLevel  Int
+  trustScore         Int                     @default(0)
+  isSuspended        Boolean                 @default(false)
+  isAdmin            Boolean                 @default(false)
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+  deletedAt          DateTime?
+
+  currencyPosts      CurrencyPost[]
+  matchRequests      CurrencyMatchRequest[]  @relation("Requester")
+  targetMatchRequests CurrencyMatchRequest[] @relation("Target")
+  parcelTrips        ParcelTrip[]
+  parcelRequests     ParcelRequest[]
+  ratingsFrom        Rating[]               @relation("FromUser")
+  ratingsTo          Rating[]               @relation("ToUser")
+  disputesRaised     Dispute[]              @relation("DisputesRaisedBy")
+  disputesResolved   Dispute[]              @relation("DisputesResolvedBy")
+  userDevices        UserDevice[]
+  refreshTokens      RefreshToken[]
+  stateChangeLogs    StateChangeLog[]       @relation("ChangedByUser")
+
+  // Chat Relations
+  conversationsAsUser1 Conversation[]       @relation("User1Conversations")
+  conversationsAsUser2 Conversation[]       @relation("User2Conversations")
+  sentMessages         Message[]            @relation("SentMessages")
+  pushTokens           PushToken[]
+}
+
+model PushToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model CurrencyPost {
+  id           String                 @id @default(uuid())
+  userId       String
+  haveCurrency String
+  needCurrency String
+  amount       Decimal
+  preferredRate Decimal
+  city         String
+  expiryDate   DateTime
+  status       CurrencyPostStatus
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+  deletedAt    DateTime?
+
+  user         User                   @relation(fields: [userId], references: [id])
+  matchRequests CurrencyMatchRequest[]
+}
+
+model CurrencyMatchRequest {
+  id             String                  @id @default(uuid())
+  currencyPostId String
+  requesterId    String
+  targetUserId   String
+  status         MatchRequestStatus
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  deletedAt      DateTime?
+
+  currencyPost   CurrencyPost            @relation(fields: [currencyPostId], references: [id])
+  requester      User                    @relation("Requester", fields: [requesterId], references: [id])
+  targetUser     User                    @relation("Target", fields: [targetUserId], references: [id])
+  ratings        Rating[]
+  disputes       Dispute[]
+  conversations  Conversation[]
+
+  @@unique([currencyPostId, requesterId])
+}
+
+model ParcelTrip {
+  id              String           @id @default(uuid())
+  userId          String
+  fromCountry     String
+  toCountry       String
+  departureDate   DateTime
+  arrivalDate     DateTime
+  maxWeightKg     Float
+  allowedCategories String
+  status          ParcelStatus
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  deletedAt       DateTime?
+
+  user            User             @relation(fields: [userId], references: [id])
+  parcelRequests  ParcelRequest[]
+}
+
+model ParcelRequest {
+  id               String        @id @default(uuid())
+  userId           String
+  tripId           String?
+  matchInitiatedByUserId String?
+  itemType         String
+  weightKg         Float
+  fromCountry      String
+  toCountry        String
+  flexibleFromDate DateTime
+  flexibleToDate   DateTime
+  status           ParcelStatus
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  deletedAt        DateTime?
+
+  user             User          @relation(fields: [userId], references: [id])
+  trip             ParcelTrip?   @relation(fields: [tripId], references: [id])
+  ratings          Rating[]
+  disputes         Dispute[]
+  conversations    Conversation[]
+}
+
+model Rating {
+  id               String                  @id @default(uuid())
+  matchRequestId   String?
+  parcelRequestId  String?
+  fromUserId       String
+  toUserId         String
+  reliabilityScore Int
+  communicationScore Int
+  timelinessScore  Int
+  comment          String?
+  createdAt        DateTime                @default(now())
+
+  matchRequest     CurrencyMatchRequest?   @relation(fields: [matchRequestId], references: [id])
+  parcelRequest    ParcelRequest?          @relation(fields: [parcelRequestId], references: [id])
+  fromUser         User                    @relation("FromUser", fields: [fromUserId], references: [id])
+  toUser           User                    @relation("ToUser", fields: [toUserId], references: [id])
+}
+
+model Dispute {
+  id              String               @id @default(uuid())
+  matchRequestId  String?
+  parcelRequestId String?
+  raisedByUserId  String
+  reason          String
+  status          DisputeStatus
+  createdAt       DateTime             @default(now())
+  resolvedAt      DateTime?
+  resolvedByAdminId String?
+
+  matchRequest    CurrencyMatchRequest? @relation(fields: [matchRequestId], references: [id])
+  parcelRequest   ParcelRequest?       @relation(fields: [parcelRequestId], references: [id])
+  raisedByUser    User                 @relation("DisputesRaisedBy", fields: [raisedByUserId], references: [id])
+  resolvedByAdmin User?                @relation("DisputesResolvedBy", fields: [resolvedByAdminId], references: [id])
+}
+
+model UserDevice {
+  id          String   @id @default(uuid())
+  userId      String
+  fingerprint String
+  lastSeenAt  DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model OtpRequest {
+  id          String   @id @default(uuid())
+  phoneNumber String
+  codeHash    String
+  expiresAt   DateTime
+  consumedAt  DateTime?
+  attempts    Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  @@index([phoneNumber])
+}
+
+model StateChangeLog {
+  id              String    @id @default(uuid())
+  entityType      String
+  entityId        String
+  fromState       String?
+  toState         String
+  changedByUserId String?
+  reason          String?
+  metadata        Json?
+  createdAt       DateTime  @default(now())
+
+  changedByUser   User?     @relation("ChangedByUser", fields: [changedByUserId], references: [id])
+}
+
+model Conversation {
+  id              String    @id @default(uuid())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user1Id         String
+  user2Id         String
+  
+  matchRequestId  String?
+  parcelRequestId String?
+
+  user1           User      @relation("User1Conversations", fields: [user1Id], references: [id])
+  user2           User      @relation("User2Conversations", fields: [user2Id], references: [id])
+  
+  matchRequest    CurrencyMatchRequest? @relation(fields: [matchRequestId], references: [id])
+  parcelRequest   ParcelRequest?        @relation(fields: [parcelRequestId], references: [id])
+
+  messages        Message[]
+
+  @@unique([user1Id, user2Id, matchRequestId, parcelRequestId])
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  conversationId String
+  senderId       String
+  content        String
+  isRead         Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  sender         User         @relation("SentMessages", fields: [senderId], references: [id])
+}
+
+enum CurrencyPostStatus {
+  draft
+  active
+  matched
+  completed
+  expired
+  cancelled
+}
+
+enum MatchRequestStatus {
+  pending
+  accepted
+  rejected
+  completed
+  cancelled
+  disputed
+}
+
+enum ParcelStatus {
+  active
+  pending
+  matched
+  completed
+  expired
+  cancelled
+}
+
+enum DisputeStatus {
+  open
+  under_review
+  resolved_valid
+  resolved_invalid
+}

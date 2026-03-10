@@ -45,14 +45,17 @@ export default function HomeScreen() {
     webClientId ||
     undefined;
   const isWeb = Platform.OS === 'web';
+  const appOwnership = Constants.appOwnership;
+  const useProxy =
+    !isWeb && (appOwnership === 'expo' || appOwnership === 'guest');
   const redirectUri = isWeb
     ? AuthSession.makeRedirectUri({ path: 'auth/callback' })
-    : AuthSession.makeRedirectUri({ useProxy: true });
+    : AuthSession.makeRedirectUri({ scheme: 'mobile', useProxy });
   const [request, response, promptAsync] = Google.useAuthRequest({
     androidClientId,
     iosClientId,
     webClientId,
-    expoClientId: isWeb ? undefined : expoClientId,
+    expoClientId: isWeb || !useProxy ? undefined : expoClientId,
     redirectUri,
     responseType: AuthSession.ResponseType.IdToken,
     scopes: ['openid', 'profile', 'email'],
@@ -158,7 +161,7 @@ export default function HomeScreen() {
             <View style={styles.row}>
               <ThemedButton
                 title="Sign in with Google"
-                onPress={() => promptAsync({ useProxy: !isWeb })}
+                onPress={() => promptAsync({ useProxy })}
                 disabled={!request || busy}
                 fullWidth
                 variant="secondary"

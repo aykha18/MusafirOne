@@ -454,16 +454,25 @@ export class ApiClient {
   }
 
   private buildUrl(path: string, query?: Record<string, unknown>) {
-    const url = new URL(this.baseUrl + path);
-    if (query) {
-      Object.entries(query).forEach(([key, value]) => {
-        if (value === undefined || value === null) {
-          return;
-        }
-        url.searchParams.append(key, String(value));
-      });
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+    let url = `${this.baseUrl}${normalizedPath}`;
+    if (!query) {
+      return url;
     }
-    return url.toString();
+    const parts: string[] = [];
+    for (const [key, value] of Object.entries(query)) {
+      if (value === undefined || value === null) {
+        continue;
+      }
+      parts.push(
+        `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`,
+      );
+    }
+    if (parts.length === 0) {
+      return url;
+    }
+    url += `${url.includes('?') ? '&' : '?'}${parts.join('&')}`;
+    return url;
   }
 
   private buildHeaders(withAuth: boolean): Record<string, string> {
@@ -529,10 +538,13 @@ export class ApiClient {
   }
 }
 
+const extra = (Constants?.expoConfig?.extra ?? {}) as any;
+const configuredApiUrl =
+  extra?.apiUrl || process.env.EXPO_PUBLIC_API_URL || undefined;
+
 const defaultBaseUrl =
-  Platform.OS === 'web'
-    ? 'http://localhost:3000'
-    : 'http://192.168.1.33:3000';
+  configuredApiUrl ??
+  (Platform.OS === 'web' ? 'http://localhost:3000' : 'http://192.168.1.33:3000');
 
 export const API_URL = defaultBaseUrl;
 console.log('API URL:', API_URL);

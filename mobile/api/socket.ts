@@ -13,7 +13,7 @@ export const connectSocket = async () => {
 
   if (socket?.connected) return socket;
 
-  const socketUrl = API_URL.replace('/api', '');
+  const socketUrl = API_URL.replace(/\/api\/?$/, '');
 
   socket = io(socketUrl, {
     auth: {

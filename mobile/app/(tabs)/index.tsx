@@ -15,6 +15,133 @@ import { CountrySelector } from '@/components/country-selector';
 
 WebBrowser.maybeCompleteAuthSession();
 
+function GoogleSignInSection({
+  androidClientId,
+  iosClientId,
+  webClientId,
+  expoClientId,
+  busy,
+  onLogin,
+  onError,
+}: {
+  androidClientId?: string;
+  iosClientId?: string;
+  webClientId?: string;
+  expoClientId?: string;
+  busy: boolean;
+  onLogin: (idToken: string) => void;
+  onError: (message: string) => void;
+}) {
+  const isWeb = Platform.OS === 'web';
+  const isAndroid = Platform.OS === 'android';
+  const appOwnership = Constants.appOwnership;
+  const useProxy = !isWeb && (appOwnership === 'expo' || appOwnership === 'guest');
+  const missingAndroidId = isAndroid && !useProxy && !androidClientId;
+
+  if (missingAndroidId) {
+    return (
+      <>
+        <View style={styles.row}>
+          <ThemedButton
+            title="Sign in with Google"
+            onPress={() =>
+              onError(
+                'Google Sign-In is not configured for Android builds. Set google.androidClientId in app.json (or EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID in EAS).',
+              )
+            }
+            disabled
+            fullWidth
+            variant="secondary"
+          />
+        </View>
+      </>
+    );
+  }
+
+  return (
+    <GoogleSignInEnabled
+      androidClientId={androidClientId}
+      iosClientId={iosClientId}
+      webClientId={webClientId}
+      expoClientId={expoClientId}
+      busy={busy}
+      onLogin={onLogin}
+      onError={onError}
+      useProxy={useProxy}
+    />
+  );
+}
+
+function GoogleSignInEnabled({
+  androidClientId,
+  iosClientId,
+  webClientId,
+  expoClientId,
+  busy,
+  onLogin,
+  onError,
+  useProxy,
+}: {
+  androidClientId?: string;
+  iosClientId?: string;
+  webClientId?: string;
+  expoClientId?: string;
+  busy: boolean;
+  onLogin: (idToken: string) => void;
+  onError: (message: string) => void;
+  useProxy: boolean;
+}) {
+  const isWeb = Platform.OS === 'web';
+  const redirectUri = isWeb
+    ? AuthSession.makeRedirectUri({ path: 'auth/callback' })
+    : AuthSession.makeRedirectUri({ scheme: 'mobile', useProxy });
+
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    androidClientId,
+    iosClientId,
+    webClientId,
+    expoClientId: isWeb || !useProxy ? undefined : expoClientId,
+    redirectUri,
+    responseType: AuthSession.ResponseType.IdToken,
+    scopes: ['openid', 'profile', 'email'],
+  });
+
+  useEffect(() => {
+    if (!response) {
+      return;
+    }
+    if (response?.type === 'success') {
+      const params = (response as any)?.params ?? {};
+      const idToken = params.id_token as string | undefined;
+      if (!idToken) {
+        const keys = Object.keys(params).join(', ');
+        onError(
+          `Google did not return id_token. Response keys: ${keys || '(none)'}`,
+        );
+        return;
+      }
+      onLogin(idToken);
+    } else if (response?.type === 'error') {
+      onError('Google Sign-In failed');
+    }
+  }, [response, onLogin, onError]);
+
+  return (
+    <>
+      <View style={styles.row}>
+        <ThemedButton
+          title="Sign in with Google"
+          onPress={() => promptAsync({ useProxy })}
+          disabled={!request || busy}
+          fullWidth
+          variant="secondary"
+        />
+      </View>
+      <ThemedText numberOfLines={2}>Redirect URI: {redirectUri}</ThemedText>
+    </>
+  );
+}
+
 export default function HomeScreen() {
   const [country, setCountry] = useState({ name: 'United Arab Emirates', code: 'AE', dialCode: '+971' });
   const [localPhone, setLocalPhone] = useState('');
@@ -44,22 +171,6 @@ export default function HomeScreen() {
     process.env.EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID ||
     webClientId ||
     undefined;
-  const isWeb = Platform.OS === 'web';
-  const appOwnership = Constants.appOwnership;
-  const useProxy =
-    !isWeb && (appOwnership === 'expo' || appOwnership === 'guest');
-  const redirectUri = isWeb
-    ? AuthSession.makeRedirectUri({ path: 'auth/callback' })
-    : AuthSession.makeRedirectUri({ scheme: 'mobile', useProxy });
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    androidClientId,
-    iosClientId,
-    webClientId,
-    expoClientId: isWeb || !useProxy ? undefined : expoClientId,
-    redirectUri,
-    responseType: AuthSession.ResponseType.IdToken,
-    scopes: ['openid', 'profile', 'email'],
-  });
 
   const isLoggedIn = !!apiClient.getAccessToken();
 
@@ -68,21 +179,6 @@ export default function HomeScreen() {
       handleLoadProfile();
     }
   }, [isLoggedIn]);
-
-  useEffect(() => {
-    if (response?.type === 'success') {
-      const params = (response as any)?.params ?? {};
-      const idToken = params.id_token as string | undefined;
-      if (!idToken) {
-        const keys = Object.keys(params).join(', ');
-        setError(`Google did not return id_token. Response keys: ${keys || '(none)'}`);
-        return;
-      }
-      handleGoogleLogin(idToken);
-    } else if (response?.type === 'error') {
-      setError('Google Sign-In failed');
-    }
-  }, [response]);
 
   const handleGoogleLogin = async (token: string) => {
     setBusy(true);
@@ -158,18 +254,15 @@ export default function HomeScreen() {
             <ThemedText type="subtitle">Sign In</ThemedText>
             
             {/* Google Sign-In */}
-            <View style={styles.row}>
-              <ThemedButton
-                title="Sign in with Google"
-                onPress={() => promptAsync({ useProxy })}
-                disabled={!request || busy}
-                fullWidth
-                variant="secondary"
-              />
-            </View>
-            <ThemedText numberOfLines={2}>
-              Redirect URI: {redirectUri}
-            </ThemedText>
+            <GoogleSignInSection
+              androidClientId={androidClientId}
+              iosClientId={iosClientId}
+              webClientId={webClientId}
+              expoClientId={expoClientId}
+              busy={busy}
+              onLogin={handleGoogleLogin}
+              onError={setError}
+            />
 
             <ThemedText style={{ textAlign: 'center', marginVertical: 10 }}>OR</ThemedText>
 

@@ -8,7 +8,7 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { UseGuards, Inject, forwardRef } from '@nestjs/common';
+import { Inject, forwardRef } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ChatService } from './chat.service';
 import { SendMessageDto } from './dto/send-message.dto';
@@ -33,13 +33,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const token = client.handshake.auth.token?.split(' ')[1];
       if (!token) {
         // Allow connection without token? No, secure chat.
-        // client.disconnect(); 
+        // client.disconnect();
         // return;
         // For debugging, maybe log it.
         console.log(`Client connected without token: ${client.id}`);
         return;
       }
-      const payload = this.jwtService.verify(token, { secret: process.env.JWT_SECRET || 'dev_jwt_secret' });
+      const payload = this.jwtService.verify(token, {
+        secret: process.env.JWT_SECRET || 'dev_jwt_secret',
+      });
       client.data.user = payload;
       await client.join(`user_${payload.sub}`);
       console.log(`Client connected: ${client.id}, User: ${payload.sub}`);
@@ -63,10 +65,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       client.emit('error', 'Unauthorized');
       return;
     }
-    
+
     try {
       // Call service to persist and emit to recipient
-      // We don't need to emit to sender again if they sent it via socket, 
+      // We don't need to emit to sender again if they sent it via socket,
       // but to be consistent with REST, we might.
       // Actually, Service.sendMessage emits to recipient.
       // Sender usually updates UI optimistically or via ack.

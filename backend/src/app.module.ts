@@ -12,6 +12,8 @@ import { UsersModule } from './users/users.module';
 
 import { ChatModule } from './chat/chat.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { LogsModule } from './logs/logs.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -25,6 +27,8 @@ import { NotificationsModule } from './notifications/notifications.module';
     DisputesModule,
     ChatModule,
     NotificationsModule,
+    LogsModule,
+    DashboardModule,
   ],
   controllers: [AppController],
   providers: [AppService],

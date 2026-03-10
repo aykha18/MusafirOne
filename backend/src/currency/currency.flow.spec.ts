@@ -28,7 +28,7 @@ describe('CurrencyService flow', () => {
 
     const prisma = {
       currencyPost: {
-        create: async ({ data }: any) => {
+        create: ({ data }: any) => {
           const id = `post-${posts.length + 1}`;
           const record: CurrencyPostRecord = {
             id,
@@ -39,15 +39,15 @@ describe('CurrencyService flow', () => {
           posts.push(record);
           return { id, ...data };
         },
-        findUnique: async ({ where }: any) => {
+        findUnique: ({ where }: any) => {
           return posts.find((p) => p.id === where.id) ?? null;
         },
-        count: async ({ where }: any) => {
+        count: ({ where }: any) => {
           return posts.filter(
             (p) => p.userId === where.userId && p.status === where.status,
           ).length;
         },
-        update: async ({ where, data }: any) => {
+        update: ({ where, data }: any) => {
           const post = posts.find((p) => p.id === where.id);
           if (!post) {
             return null;
@@ -62,7 +62,7 @@ describe('CurrencyService flow', () => {
         },
       },
       currencyMatchRequest: {
-        findFirst: async ({ where }: any) => {
+        findFirst: ({ where }: any) => {
           return (
             requests.find(
               (r) =>
@@ -71,7 +71,7 @@ describe('CurrencyService flow', () => {
             ) ?? null
           );
         },
-        create: async ({ data }: any) => {
+        create: ({ data }: any) => {
           const id = `req-${requests.length + 1}`;
           const record: MatchRequestRecord = {
             id,
@@ -83,7 +83,7 @@ describe('CurrencyService flow', () => {
           requests.push(record);
           return { id, ...data };
         },
-        findMany: async ({ where }: any) => {
+        findMany: ({ where }: any) => {
           if (where.requesterId && where.targetUserId) {
             return requests.filter(
               (r) =>
@@ -95,14 +95,16 @@ describe('CurrencyService flow', () => {
             return requests.filter((r) => r.requesterId === where.requesterId);
           }
           if (where.targetUserId) {
-            return requests.filter((r) => r.targetUserId === where.targetUserId);
+            return requests.filter(
+              (r) => r.targetUserId === where.targetUserId,
+            );
           }
           return requests;
         },
-        findUnique: async ({ where }: any) => {
+        findUnique: ({ where }: any) => {
           return requests.find((r) => r.id === where.id) ?? null;
         },
-        update: async ({ where, data }: any) => {
+        update: ({ where, data }: any) => {
           const req = requests.find((r) => r.id === where.id);
           if (!req) {
             return null;
@@ -112,7 +114,7 @@ describe('CurrencyService flow', () => {
           }
           return { ...req, ...data };
         },
-        updateMany: async ({ where, data }: any) => {
+        updateMany: ({ where, data }: any) => {
           let count = 0;
           requests.forEach((r) => {
             if (
@@ -130,11 +132,11 @@ describe('CurrencyService flow', () => {
         },
       },
       stateChangeLog: {
-        create: async () => {
+        create: () => {
           return undefined;
         },
       },
-      $transaction: async (callback: any) => {
+      $transaction: (callback: any) => {
         return callback(prisma);
       },
     } as any;

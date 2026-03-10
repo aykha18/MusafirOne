@@ -13,6 +13,11 @@ export class AdminGuard implements CanActivate {
       .switchToHttp()
       .getRequest<{ user?: AuthenticatedUser }>();
     const user = request.user;
+    if (!user || !user.isAdmin) {
+      console.log('AdminGuard: Access denied', { user });
+    } else {
+      console.log('AdminGuard: Access granted', { userId: user.id });
+    }
     return Boolean(user && user.isAdmin);
   }
 }

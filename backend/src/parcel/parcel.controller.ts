@@ -105,12 +105,18 @@ export class ParcelController {
   }
 
   @Post('requests/:id/accept')
-  acceptMatch(@Req() req: AuthenticatedRequest, @Param('id') requestId: string) {
+  acceptMatch(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') requestId: string,
+  ) {
     return this.parcelService.acceptMatch(req.user.id, requestId);
   }
 
   @Post('requests/:id/reject')
-  rejectMatch(@Req() req: AuthenticatedRequest, @Param('id') requestId: string) {
+  rejectMatch(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') requestId: string,
+  ) {
     return this.parcelService.rejectMatch(req.user.id, requestId);
   }
 

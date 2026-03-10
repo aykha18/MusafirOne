@@ -45,18 +45,22 @@ export class DisputesService {
       }
       const isRequestOwner = request.userId === userId;
       const isTripOwner = request.trip.userId === userId;
-      
+
       if (!isRequestOwner && !isTripOwner) {
-        throw new BadRequestException('User not part of this parcel transaction');
+        throw new BadRequestException(
+          'User not part of this parcel transaction',
+        );
       }
-      
+
       if (request.status !== 'matched' && request.status !== 'completed') {
         throw new BadRequestException(
           'Disputes allowed only for matched or completed parcel requests',
         );
       }
     } else {
-      throw new BadRequestException('Either matchRequestId or parcelRequestId must be provided');
+      throw new BadRequestException(
+        'Either matchRequestId or parcelRequestId must be provided',
+      );
     }
 
     const existingOpen = await this.prisma.dispute.findFirst({
@@ -99,10 +103,7 @@ export class DisputesService {
           },
           {
             parcelRequest: {
-              OR: [
-                { userId: userId },
-                { trip: { userId: userId } },
-              ],
+              OR: [{ userId: userId }, { trip: { userId: userId } }],
             },
           },
         ],
@@ -184,7 +185,7 @@ export class DisputesService {
       const requestOwner = dispute.parcelRequest.userId;
       const tripOwner = dispute.parcelRequest.trip?.userId;
       if (!tripOwner && dispute.raisedByUserId === requestOwner) {
-          throw new BadRequestException('Trip owner not found');
+        throw new BadRequestException('Trip owner not found');
       }
       targetUserId =
         dispute.raisedByUserId === requestOwner ? tripOwner! : requestOwner;

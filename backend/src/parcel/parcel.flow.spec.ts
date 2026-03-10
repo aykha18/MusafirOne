@@ -35,7 +35,7 @@ describe('ParcelService flow', () => {
 
     const prisma = {
       parcelTrip: {
-        create: async ({ data }: any) => {
+        create: ({ data }: any) => {
           const id = `trip-${trips.length + 1}`;
           const record: TripRecord = {
             id,
@@ -49,10 +49,10 @@ describe('ParcelService flow', () => {
           trips.push(record);
           return { id, ...data };
         },
-        findUnique: async ({ where }: any) => {
+        findUnique: ({ where }: any) => {
           return trips.find((t) => t.id === where.id) ?? null;
         },
-        update: async ({ where, data }: any) => {
+        update: ({ where, data }: any) => {
           const trip = trips.find((t) => t.id === where.id);
           if (!trip) {
             return null;
@@ -68,7 +68,7 @@ describe('ParcelService flow', () => {
           }
           return { ...trip, ...data };
         },
-        updateMany: async ({ where, data }: any) => {
+        updateMany: ({ where, data }: any) => {
           let count = 0;
           trips.forEach((t) => {
             if (
@@ -83,15 +83,15 @@ describe('ParcelService flow', () => {
           });
           return { count };
         },
-        findMany: async () => {
+        findMany: () => {
           return trips;
         },
-        count: async () => {
+        count: () => {
           return trips.length;
         },
       },
       parcelRequest: {
-        create: async ({ data }: any) => {
+        create: ({ data }: any) => {
           const id = `req-${requests.length + 1}`;
           const record: RequestRecord = {
             id,
@@ -106,10 +106,10 @@ describe('ParcelService flow', () => {
           requests.push(record);
           return { id, ...data };
         },
-        findUnique: async ({ where }: any) => {
+        findUnique: ({ where }: any) => {
           return requests.find((r) => r.id === where.id) ?? null;
         },
-        update: async ({ where, data }: any) => {
+        update: ({ where, data }: any) => {
           const request = requests.find((r) => r.id === where.id);
           if (!request) {
             return null;
@@ -122,7 +122,7 @@ describe('ParcelService flow', () => {
           }
           return { ...request, ...data };
         },
-        updateMany: async ({ where, data }: any) => {
+        updateMany: ({ where, data }: any) => {
           let count = 0;
           requests.forEach((r) => {
             if (
@@ -137,19 +137,19 @@ describe('ParcelService flow', () => {
           });
           return { count };
         },
-        findMany: async () => {
+        findMany: () => {
           return requests;
         },
-        count: async () => {
+        count: () => {
           return requests.length;
         },
       },
       stateChangeLog: {
-        create: async () => {
+        create: () => {
           return undefined;
         },
       },
-      $transaction: async (callback: any) => {
+      $transaction: (callback: any) => {
         return callback(prisma);
       },
     } as any;

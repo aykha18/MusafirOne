@@ -13,7 +13,9 @@ export class NotificationsService {
 
   async registerPushToken(userId: string, token: string) {
     if (!Expo.isExpoPushToken(token)) {
-      throw new Error(`Push token ${token} is not a valid Expo push token`);
+      throw new Error(
+        'Push token ' + String(token) + ' is not a valid Expo push token',
+      );
     }
 
     return this.prisma.pushToken.upsert({
@@ -37,7 +39,7 @@ export class NotificationsService {
     });
 
     if (!tokens.length) {
-      this.logger.debug(`No push tokens found for user ${userId}`);
+      this.logger.debug('No push tokens found for user ' + String(userId));
       return;
     }
 
@@ -45,7 +47,9 @@ export class NotificationsService {
     for (const pushToken of tokens) {
       if (!Expo.isExpoPushToken(pushToken.token)) {
         this.logger.error(
-          `Push token ${pushToken.token} is not a valid Expo push token`,
+          'Push token ' +
+            String(pushToken.token) +
+            ' is not a valid Expo push token',
         );
         continue;
       }
@@ -70,7 +74,7 @@ export class NotificationsService {
         this.logger.error('Error sending push notifications', error);
       }
     }
-    
+
     // In a real app, we should check tickets for errors and remove invalid tokens
     // but for now, we'll just log any issues.
   }

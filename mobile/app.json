@@ -2,6 +2,7 @@
   "expo": {
     "name": "mobile",
     "slug": "mobile",
+    "owner": "aykha",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -12,6 +13,7 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.muhajirone.mobile",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -46,8 +48,14 @@
       "reactCompiler": true
     },
     "extra": {
+      "router": {},
+      "google": {
+        "webClientId": "237236012926-72fbblbauodu2psqhgu3ss5np3v8i9h3.apps.googleusercontent.com",
+        "androidClientId": "",
+        "iosClientId": ""
+      },
       "eas": {
-        "projectId": "00000000-0000-0000-0000-000000000000"
+        "projectId": "fea47c3e-f388-4c31-a4d3-1e84156f74d0"
       }
     }
   }

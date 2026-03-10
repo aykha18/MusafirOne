@@ -25,8 +25,16 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       },
     });
     if (!user || user.isSuspended || user.deletedAt) {
+      console.log('JwtStrategy: User not found or suspended', {
+        payload,
+        user,
+      });
       throw new UnauthorizedException();
     }
+    console.log('JwtStrategy: User validated', {
+      id: user.id,
+      isAdmin: user.isAdmin,
+    });
     return {
       id: user.id,
       phoneNumber: user.phoneNumber,

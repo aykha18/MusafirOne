@@ -21,6 +21,8 @@ export class CurrencyService {
   ) {}
 
   async createPost(userId: string, dto: CreateCurrencyPostDto) {
+    await this.validateUserEligibility(userId);
+
     const expiry = new Date(dto.expiryDate);
     if (Number.isNaN(expiry.getTime()) || expiry <= new Date()) {
       throw new BadRequestException('Expiry date must be in the future');
@@ -40,12 +42,38 @@ export class CurrencyService {
     return post;
   }
 
+  private async validateUserEligibility(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) throw new NotFoundException('User not found');
+    if (user.isSuspended) throw new ForbiddenException('User is suspended');
+
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const dailyPostCount = await this.prisma.currencyPost.count({
+      where: {
+        userId,
+        createdAt: {
+          gte: startOfDay,
+        },
+      },
+    });
+
+    if (dailyPostCount >= 5) {
+      throw new BadRequestException('Daily post limit reached (5 posts/day)');
+    }
+  }
+
   async listPosts(query: ListCurrencyPostsDto) {
     await this.expireOldPosts();
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 20;
     const where: Record<string, unknown> = {
       status: 'active',
+      deletedAt: null,
       expiryDate: {
         gt: new Date(),
       },
@@ -205,7 +233,7 @@ export class CurrencyService {
     // Handle associated match requests
     if (post.matchRequests.length > 0) {
       const requestIds = post.matchRequests.map((r) => r.id);
-      
+
       // Notify requesters
       for (const req of post.matchRequests) {
         await this.notificationsService.sendPushNotification(
@@ -447,16 +475,25 @@ export class CurrencyService {
       throw new ForbiddenException();
     }
     if (request.status === 'completed' || request.status === 'rejected') {
-      throw new BadRequestException('Cannot cancel completed or rejected requests');
+      throw new BadRequestException(
+        'Cannot cancel completed or rejected requests',
+      );
     }
 
     // Notify post owner
-    if (request.currencyPost && (request.status === 'pending' || request.status === 'accepted')) {
+    if (
+      request.currencyPost &&
+      (request.status === 'pending' || request.status === 'accepted')
+    ) {
       await this.notificationsService.sendPushNotification(
         request.currencyPost.userId,
         'Currency Request Cancelled',
         'A currency match request has been cancelled by the requester.',
-        { requestId: requestId, postId: request.currencyPostId, type: 'currency_request_cancelled' },
+        {
+          requestId: requestId,
+          postId: request.currencyPostId,
+          type: 'currency_request_cancelled',
+        },
       );
     }
 

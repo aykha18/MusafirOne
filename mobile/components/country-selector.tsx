@@ -7,18 +7,20 @@ import { Ionicons } from '@expo/vector-icons';
 import citiesData from '../data/cities.json';
 import { useThemeColor } from '@/hooks/use-theme-color';
 
-type Country = {
+export type Country = {
   name: string;
   code: string; // ISO code e.g. AE
   dialCode: string; // e.g. +971
 };
 
 type Props = {
-  value: Country;
+  value?: Country;
   onChange: (country: Country) => void;
+  showDialCode?: boolean;
+  placeholder?: string;
 };
 
-export function CountrySelector({ value, onChange }: Props) {
+export function CountrySelector({ value, onChange, showDialCode = true, placeholder = "Select Country" }: Props) {
   const [modalVisible, setModalVisible] = useState(false);
   const [search, setSearch] = useState('');
   
@@ -47,7 +49,7 @@ export function CountrySelector({ value, onChange }: Props) {
   const filteredCountries = uniqueCountries.filter((country) =>
     country.name.toLowerCase().includes(search.toLowerCase()) ||
     country.code.toLowerCase().includes(search.toLowerCase()) ||
-    country.dialCode.includes(search)
+    (showDialCode && country.dialCode.includes(search))
   );
 
   const handleSelect = (country: Country) => {
@@ -60,12 +62,16 @@ export function CountrySelector({ value, onChange }: Props) {
     setModalVisible(true);
   };
 
+  const displayValue = value 
+    ? (showDialCode ? `${value.name} (${value.dialCode})` : value.name)
+    : '';
+
   return (
     <>
       <ThemedInput
-        value={`${value.name} (${value.dialCode})`}
+        value={displayValue}
         onChangeText={() => {}}
-        placeholder="Select Country"
+        placeholder={placeholder}
         onPress={handleOpen}
       />
 
@@ -79,7 +85,7 @@ export function CountrySelector({ value, onChange }: Props) {
             <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.closeButton}>
               <Ionicons name="close" size={24} color="#007AFF" />
             </TouchableOpacity>
-            <ThemedText type="subtitle">Select Country</ThemedText>
+            <ThemedText type="subtitle">{placeholder}</ThemedText>
             <View style={{ width: 24 }} />
           </View>
 
@@ -87,7 +93,7 @@ export function CountrySelector({ value, onChange }: Props) {
             <ThemedInput
               value={search}
               onChangeText={setSearch}
-              placeholder="Search country or code"
+              placeholder={showDialCode ? "Search country or code" : "Search country"}
               autoFocus
             />
           </View>
@@ -101,10 +107,12 @@ export function CountrySelector({ value, onChange }: Props) {
                 onPress={() => handleSelect(item)}
               >
                 <View>
-                  <ThemedText type="defaultSemiBold">{item.name} ({item.code})</ThemedText>
-                  <ThemedText style={{ color: '#666' }}>{item.dialCode}</ThemedText>
+                  <ThemedText type="defaultSemiBold">
+                    {item.name} {showDialCode && <ThemedText style={{ color: borderColor }}>({item.dialCode})</ThemedText>}
+                  </ThemedText>
+                  <ThemedText style={{ color: borderColor }}>{item.code}</ThemedText>
                 </View>
-                {value.code === item.code && (
+                {value?.code === item.code && (
                   <Ionicons name="checkmark" size={20} color="#007AFF" />
                 )}
               </TouchableOpacity>

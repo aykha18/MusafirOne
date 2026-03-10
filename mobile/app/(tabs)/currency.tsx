@@ -408,14 +408,16 @@ export default function CurrencyScreen() {
                  setSelectedMatchForDispute(item);
                  setDisputeModalVisible(true);
                }} 
-               style={{ flex: 1 }}
+               style={{ flex: 1, minWidth: 80 }}
+               textStyle={{ fontSize: 12 }}
              />
              <View style={{ width: 8 }} />
              <ThemedButton 
                title="Chat" 
                variant="secondary"
                onPress={() => handleMessage(chatTargetId, item.id)} 
-               style={{ flex: 1 }}
+               style={{ flex: 1, minWidth: 60 }}
+               textStyle={{ fontSize: 12 }}
              />
             </View>
           )}
@@ -437,14 +439,16 @@ export default function CurrencyScreen() {
                    setSelectedMatchForDispute(item);
                    setDisputeModalVisible(true);
                  }} 
-                 style={{ flex: 1 }}
+                 style={{ flex: 1, minWidth: 80 }}
+                 textStyle={{ fontSize: 12 }}
                />
                <View style={{ width: 8 }} />
                <ThemedButton 
                  title="Chat" 
                  variant="secondary"
                  onPress={() => handleMessage(chatTargetId, item.id)} 
-                 style={{ flex: 1 }}
+                 style={{ flex: 1, minWidth: 60 }}
+                 textStyle={{ fontSize: 12 }}
                />
              </View>
           )}
@@ -468,12 +472,27 @@ export default function CurrencyScreen() {
       headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
       headerImage={null}>
       <ThemedView style={styles.header}>
-        <ThemedText type="title">Currency</ThemedText>
+        <View style={styles.headerTextContainer}>
+          <ThemedText type="title">Currency Exchange</ThemedText>
+          <ThemedText style={{ fontSize: 14, color: '#666', marginBottom: 8 }}>
+            Connect with others to exchange currency securely.
+          </ThemedText>
+          <ThemedText style={{ fontSize: 12, color: '#666', marginBottom: 2 }}>
+            • Use &quot;Create Post&quot; to list currency you have or need.
+          </ThemedText>
+          <ThemedText style={{ fontSize: 12, color: '#666', marginBottom: 2 }}>
+            • Browse &quot;Available Posts&quot; to find matches.
+          </ThemedText>
+          <ThemedText style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
+            Check &quot;My Requests&quot; for status updates on your trades.
+          </ThemedText>
+        </View>
         <View style={styles.headerButtons}>
           <ThemedButton
-            title={creating ? 'Close form' : 'Create post'}
+            title={creating ? 'Close' : 'Create'}
             onPress={() => setCreating((prev) => !prev)}
             variant="secondary"
+            style={{ minWidth: 80 }}
           />
         </View>
       </ThemedView>
@@ -484,14 +503,14 @@ export default function CurrencyScreen() {
           style={[styles.tab, viewMode === 'posts' && styles.activeTab]} 
           onPress={() => setViewMode('posts')}
         >
-          <ThemedText style={[styles.tabText, viewMode === 'posts' && styles.activeTabText]}>Market</ThemedText>
+          <ThemedText style={[styles.tabText, viewMode === 'posts' && styles.activeTabText]}>Available Posts</ThemedText>
         </TouchableOpacity>
         <TouchableOpacity 
           style={[styles.tab, viewMode === 'requests' && styles.activeTab]} 
           onPress={() => setViewMode('requests')}
         >
           <ThemedText style={[styles.tabText, viewMode === 'requests' && styles.activeTabText]}>
-            Requests {requests.filter(r => r.status === 'pending' && r.targetUserId === myUserId).length > 0 && `(${requests.filter(r => r.status === 'pending' && r.targetUserId === myUserId).length})`}
+            My Requests {requests.filter(r => r.status === 'pending' && r.targetUserId === myUserId).length > 0 && `(${requests.filter(r => r.status === 'pending' && r.targetUserId === myUserId).length})`}
           </ThemedText>
         </TouchableOpacity>
       </View>
@@ -547,6 +566,10 @@ export default function CurrencyScreen() {
 
       {viewMode === 'posts' ? (
         <View style={styles.list}>
+          <ThemedText type="subtitle">Active Posts</ThemedText>
+          <ThemedText style={{ marginBottom: 10, fontSize: 12, color: '#666' }}>
+            Browse posts from other users. Tap &quot;Request Match&quot; to initiate a trade.
+          </ThemedText>
           {posts.map((post) => (
             <View key={post.id}>{renderPostItem({ item: post })}</View>
           ))}
@@ -588,11 +611,16 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 16,
+  },
+  headerTextContainer: {
+    flex: 1,
+    marginRight: 16,
   },
   headerButtons: {
     flexDirection: 'row',
+    marginTop: 4,
   },
   tabsContainer: {
     flexDirection: 'row',

@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ChatGateway } from './chat.gateway';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -16,7 +22,7 @@ export class ChatService {
 
   async createConversation(userId: string, dto: CreateConversationDto) {
     const { targetUserId, matchRequestId, parcelRequestId } = dto;
-    
+
     // Check if conversation exists
     const existing = await this.prisma.conversation.findFirst({
       where: {
@@ -48,7 +54,7 @@ export class ChatService {
         user2: true,
       },
     });
-    
+
     return conversation;
   }
 
@@ -69,12 +75,51 @@ export class ChatService {
     });
   }
 
+  async getConversation(conversationId: string, userId: string) {
+    const conversation = await this.prisma.conversation.findUnique({
+      where: { id: conversationId },
+      include: {
+        user1: { select: { id: true, fullName: true } },
+        user2: { select: { id: true, fullName: true } },
+        matchRequest: {
+          include: {
+            currencyPost: {
+              select: {
+                haveCurrency: true,
+                needCurrency: true,
+                amount: true,
+              },
+            },
+          },
+        },
+        parcelRequest: {
+          select: {
+            itemType: true,
+            fromCountry: true,
+            toCountry: true,
+          },
+        },
+      },
+    });
+
+    if (!conversation) throw new NotFoundException('Conversation not found');
+
+    if (conversation.user1Id !== userId && conversation.user2Id !== userId) {
+      throw new BadRequestException('Not a participant');
+    }
+
+    return conversation;
+  }
+
   async getMessages(conversationId: string, userId: string) {
     // Verify participation
     const conversation = await this.prisma.conversation.findUnique({
       where: { id: conversationId },
     });
-    if (!conversation || (conversation.user1Id !== userId && conversation.user2Id !== userId)) {
+    if (
+      !conversation ||
+      (conversation.user1Id !== userId && conversation.user2Id !== userId)
+    ) {
       throw new NotFoundException('Conversation not found');
     }
 
@@ -87,11 +132,11 @@ export class ChatService {
 
   async sendMessage(userId: string, dto: SendMessageDto) {
     const { conversationId, content } = dto;
-    
+
     const conversation = await this.prisma.conversation.findUnique({
       where: { id: conversationId },
     });
-    
+
     if (!conversation) throw new NotFoundException('Conversation not found');
     if (conversation.user1Id !== userId && conversation.user2Id !== userId) {
       throw new BadRequestException('Not a participant');
@@ -113,7 +158,10 @@ export class ChatService {
     });
 
     // Notify recipient via socket
-    const recipientId = conversation.user1Id === userId ? conversation.user2Id : conversation.user1Id;
+    const recipientId =
+      conversation.user1Id === userId
+        ? conversation.user2Id
+        : conversation.user1Id;
     this.chatGateway.sendToUser(recipientId, 'newMessage', message);
 
     // Send Push Notification
@@ -123,7 +171,7 @@ export class ChatService {
       message.content,
       { conversationId, type: 'chat_message' },
     );
-    
+
     return message;
   }
 }

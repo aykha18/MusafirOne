@@ -3,7 +3,7 @@ import { useLocalSearchParams, useNavigation } from 'expo-router';
 import { useState, useEffect, useRef } from 'react';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { apiClient, Message } from '@/api/client';
+import { apiClient, Message, Conversation } from '@/api/client';
 import { connectSocket, getSocket } from '@/api/socket';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -16,6 +16,7 @@ export default function ChatScreen() {
   const colorScheme = useColorScheme();
   
   const [messages, setMessages] = useState<Message[]>([]);
+  const [conversation, setConversation] = useState<Conversation | null>(null);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -26,14 +27,18 @@ export default function ChatScreen() {
     
     const init = async () => {
       try {
-        const [me, msgs] = await Promise.all([
+        const [me, msgs, conv] = await Promise.all([
           apiClient.getMe(),
           apiClient.getMessages(conversationId),
+          apiClient.getConversation(conversationId),
         ]);
         setMyId(me.id);
-        // msgs is oldest to newest. Inverted FlatList needs newest first (index 0).
-        // So we reverse it.
         setMessages([...msgs].reverse()); 
+        setConversation(conv);
+
+        // Update title with other user's name
+        const otherUser = conv.user1.id === me.id ? conv.user2 : conv.user1;
+        navigation.setOptions({ title: otherUser.fullName });
         
         // Connect socket
         const socket = await connectSocket();
@@ -103,6 +108,9 @@ export default function ChatScreen() {
     );
   }
 
+  const contextBackgroundColor = colorScheme === 'dark' ? '#333' : '#f0f0f0';
+  const contextBorderColor = colorScheme === 'dark' ? '#444' : '#ccc';
+
   return (
     <KeyboardAvoidingView 
       style={styles.container} 
@@ -110,6 +118,21 @@ export default function ChatScreen() {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
       <ThemedView style={styles.container}>
+        {conversation?.matchRequest?.currencyPost && (
+           <View style={[styles.contextBanner, { backgroundColor: contextBackgroundColor, borderBottomColor: contextBorderColor }]}>
+             <ThemedText style={styles.contextText}>
+               Trading: {conversation.matchRequest.currencyPost.amount} {conversation.matchRequest.currencyPost.haveCurrency} for {conversation.matchRequest.currencyPost.needCurrency}
+             </ThemedText>
+           </View>
+        )}
+        {conversation?.parcelRequest && (
+           <View style={[styles.contextBanner, { backgroundColor: contextBackgroundColor, borderBottomColor: contextBorderColor }]}>
+             <ThemedText style={styles.contextText}>
+               Parcel: {conversation.parcelRequest.itemType} ({conversation.parcelRequest.fromCountry} ➡️ {conversation.parcelRequest.toCountry})
+             </ThemedText>
+           </View>
+        )}
+
         <FlatList
           data={messages}
           renderItem={renderItem}
@@ -183,5 +206,14 @@ const styles = StyleSheet.create({
   },
   sendButton: {
     padding: 8,
+  },
+  contextBanner: {
+    padding: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+  },
+  contextText: {
+    fontSize: 12,
+    color: '#888',
   },
 });

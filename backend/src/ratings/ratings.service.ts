@@ -29,11 +29,16 @@ export class RatingsService {
       if (match.status !== 'completed') {
         throw new BadRequestException('Only completed matches can be rated');
       }
-      if (match.requesterId !== fromUserId && match.targetUserId !== fromUserId) {
+      if (
+        match.requesterId !== fromUserId &&
+        match.targetUserId !== fromUserId
+      ) {
         throw new BadRequestException('User not part of this match');
       }
       toUserId =
-        match.requesterId === fromUserId ? match.targetUserId : match.requesterId;
+        match.requesterId === fromUserId
+          ? match.targetUserId
+          : match.requesterId;
     } else if (dto.parcelRequestId) {
       const request = await this.prisma.parcelRequest.findUnique({
         where: { id: dto.parcelRequestId },
@@ -48,7 +53,7 @@ export class RatingsService {
       if (!request.trip) {
         throw new BadRequestException('Request is not linked to a trip');
       }
-      
+
       const tripUserId = request.trip.userId;
       const requestUserId = request.userId;
 
@@ -59,10 +64,14 @@ export class RatingsService {
         // Request owner rating Trip owner
         toUserId = tripUserId;
       } else {
-        throw new BadRequestException('User not part of this parcel transaction');
+        throw new BadRequestException(
+          'User not part of this parcel transaction',
+        );
       }
     } else {
-      throw new BadRequestException('Either matchRequestId or parcelRequestId must be provided');
+      throw new BadRequestException(
+        'Either matchRequestId or parcelRequestId must be provided',
+      );
     }
 
     const existing = await this.prisma.rating.findFirst({

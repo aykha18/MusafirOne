@@ -1,6 +1,17 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
-import { Alert } from 'react-native';
+import { Alert, Platform } from 'react-native';
+
+export type User = {
+  id: string;
+  phoneNumber: string;
+  fullName?: string;
+  city?: string;
+  corridor?: string;
+  verificationLevel?: number;
+  isAdmin?: boolean;
+  isSuspended?: boolean;
+};
 
 export type AuthTokens = {
   accessToken: string;
@@ -65,6 +76,20 @@ export type Conversation = {
   user2: { id: string; fullName: string };
   messages: Message[];
   updatedAt: string;
+  matchRequestId?: string;
+  parcelRequestId?: string;
+  matchRequest?: {
+    currencyPost: {
+      haveCurrency: string;
+      needCurrency: string;
+      amount: string;
+    }
+  };
+  parcelRequest?: {
+    itemType: string;
+    fromCountry: string;
+    toCountry: string;
+  };
 };
 
 export type Message = {
@@ -153,12 +178,18 @@ export class ApiClient {
     }
   }
 
-  async requestOtp(payload: RequestOtpPayload): Promise<{ code: string }> {
-    return this.post<{ code: string }>('/auth/request-otp', payload, false);
+  async requestOtp(payload: RequestOtpPayload): Promise<{ message: string }> {
+    return this.post<{ message: string }>('/auth/request-otp', payload, false);
   }
 
   async verifyOtp(payload: VerifyOtpPayload): Promise<AuthTokens> {
     const tokens = await this.post<AuthTokens>('/auth/verify-otp', payload, false);
+    await this.setTokens(tokens);
+    return tokens;
+  }
+
+  async googleLogin(token: string, deviceFingerprint: string): Promise<AuthTokens> {
+    const tokens = await this.post<AuthTokens>('/auth/google-login', { token, deviceFingerprint }, false);
     await this.setTokens(tokens);
     return tokens;
   }
@@ -179,7 +210,29 @@ export class ApiClient {
   }
 
   async getMe() {
-    return this.get('/users/me');
+    return this.get<User>('/users/me');
+  }
+
+  async listUsers() {
+    const response = await this.get<{ items: User[] }>('/users');
+    return response.items;
+  }
+
+  async suspendUser(userId: string, isSuspended: boolean = true) {
+    return this.patch(`/users/${userId}/suspend`, { isSuspended });
+  }
+
+  async verifyUser(userId: string, level: number = 1) {
+    return this.patch(`/users/${userId}/verify`, { level });
+  }
+
+  async getUserStats(userId: string) {
+    return this.get<{
+      currencyPosts: number;
+      parcelTrips: number;
+      parcelRequests: number;
+      totalPosts: number;
+    }>(`/admin/dashboard/user-stats/${userId}`);
   }
 
   async healthCheck(): Promise<boolean> {
@@ -340,6 +393,10 @@ export class ApiClient {
     return this.get<Conversation[]>('/chat/conversations');
   }
 
+  async getConversation(conversationId: string) {
+    return this.get<Conversation>(`/chat/conversations/${conversationId}`);
+  }
+
   async getMessages(conversationId: string) {
     return this.get<Message[]>(`/chat/conversations/${conversationId}/messages`);
   }
@@ -472,8 +529,10 @@ export class ApiClient {
   }
 }
 
-const localhost = Constants.expoConfig?.hostUri?.split(':')[0] || '192.168.1.33';
-const defaultBaseUrl = `http://${localhost}:3000`;
+const defaultBaseUrl =
+  Platform.OS === 'web'
+    ? 'http://localhost:3000'
+    : 'http://192.168.1.33:3000';
 
 export const API_URL = defaultBaseUrl;
 console.log('API URL:', API_URL);

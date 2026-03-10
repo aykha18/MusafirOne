@@ -22,6 +22,8 @@ export class ParcelService {
   ) {}
 
   async createTrip(userId: string, dto: CreateParcelTripDto) {
+    await this.validateUserEligibility(userId);
+
     const departureDate = new Date(dto.departureDate);
     const arrivalDate = new Date(dto.arrivalDate);
     if (
@@ -60,6 +62,7 @@ export class ParcelService {
     const pageSize = query.pageSize ?? 20;
     const where: Record<string, unknown> = {
       status: 'active',
+      deletedAt: null,
       departureDate: {
         gt: new Date(),
       },
@@ -196,7 +199,7 @@ export class ParcelService {
     // Handle associated requests
     if (trip.parcelRequests.length > 0) {
       const requestIds = trip.parcelRequests.map((r) => r.id);
-      
+
       // Notify request owners
       for (const req of trip.parcelRequests) {
         await this.notificationsService.sendPushNotification(
@@ -276,6 +279,8 @@ export class ParcelService {
   }
 
   async createRequest(userId: string, dto: CreateParcelRequestDto) {
+    await this.validateUserEligibility(userId);
+
     const from = new Date(dto.flexibleFromDate);
     const to = new Date(dto.flexibleToDate);
     if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
@@ -357,6 +362,7 @@ export class ParcelService {
     return this.prisma.parcelRequest.findMany({
       where: {
         userId,
+        deletedAt: null,
       },
       include: { trip: true },
       orderBy: {
@@ -380,18 +386,31 @@ export class ParcelService {
     if (request.userId !== userId) {
       throw new ForbiddenException();
     }
-    if (request.status !== 'active' && request.status !== 'pending' && request.status !== 'matched') {
+    if (
+      request.status !== 'active' &&
+      request.status !== 'pending' &&
+      request.status !== 'matched'
+    ) {
       // Allow cancelling pending/matched requests too, reverting the match
-      throw new BadRequestException('Only active, pending, or matched requests can be cancelled');
+      throw new BadRequestException(
+        'Only active, pending, or matched requests can be cancelled',
+      );
     }
 
     // Notify trip owner if matched/pending
-    if (request.trip && (request.status === 'pending' || request.status === 'matched')) {
+    if (
+      request.trip &&
+      (request.status === 'pending' || request.status === 'matched')
+    ) {
       await this.notificationsService.sendPushNotification(
         request.trip.userId,
         'Parcel Request Cancelled',
         'A parcel request matched with your trip has been cancelled.',
-        { requestId: id, tripId: request.trip.id, type: 'parcel_request_cancelled' },
+        {
+          requestId: id,
+          tripId: request.trip.id,
+          type: 'parcel_request_cancelled',
+        },
       );
     }
 
@@ -439,21 +458,27 @@ export class ParcelService {
     if (request.status !== 'active') {
       throw new BadRequestException('Only active requests can be matched');
     }
-    
+
     if (trip.status !== 'active') {
       throw new BadRequestException('Trip is not active');
     }
-    
+
     // Validate matching criteria
-    if (request.fromCountry !== trip.fromCountry || request.toCountry !== trip.toCountry) {
-        throw new BadRequestException('Countries do not match');
+    if (
+      request.fromCountry !== trip.fromCountry ||
+      request.toCountry !== trip.toCountry
+    ) {
+      throw new BadRequestException('Countries do not match');
     }
     if (request.weightKg > trip.maxWeightKg) {
-        throw new BadRequestException('Request weight exceeds trip capacity');
+      throw new BadRequestException('Request weight exceeds trip capacity');
     }
     // Date check: Trip departure must be within request flexible window
-    if (trip.departureDate < request.flexibleFromDate || trip.departureDate > request.flexibleToDate) {
-         throw new BadRequestException('Trip date is outside request window');
+    if (
+      trip.departureDate < request.flexibleFromDate ||
+      trip.departureDate > request.flexibleToDate
+    ) {
+      throw new BadRequestException('Trip date is outside request window');
     }
 
     const updated = await this.prisma.parcelRequest.update({
@@ -464,7 +489,7 @@ export class ParcelService {
         matchInitiatedByUserId: userId,
       },
     });
-    
+
     await this.logStateChange(
       'ParcelRequest',
       requestId,
@@ -476,7 +501,8 @@ export class ParcelService {
     );
 
     // Notify the other party
-    const targetUserId = userId === request.userId ? trip.userId : request.userId;
+    const targetUserId =
+      userId === request.userId ? trip.userId : request.userId;
     await this.notificationsService.sendPushNotification(
       targetUserId,
       'New Parcel Match Request',
@@ -495,20 +521,20 @@ export class ParcelService {
     if (!request || request.deletedAt || !request.trip) {
       throw new NotFoundException('Request or associated trip not found');
     }
-    
+
     const isRequestOwner = request.userId === userId;
     const isTripOwner = request.trip.userId === userId;
-    
+
     if (!isRequestOwner && !isTripOwner) {
       throw new ForbiddenException();
     }
-    
+
     if (request.status !== 'pending') {
       throw new BadRequestException('Request is not pending approval');
     }
 
     if (request.matchInitiatedByUserId === userId) {
-        throw new BadRequestException('Cannot accept your own match request');
+      throw new BadRequestException('Cannot accept your own match request');
     }
 
     const updated = await this.prisma.parcelRequest.update({
@@ -557,7 +583,7 @@ export class ParcelService {
     }
 
     if (request.status !== 'pending' && request.status !== 'matched') {
-       throw new BadRequestException('Cannot reject/cancel in current status');
+      throw new BadRequestException('Cannot reject/cancel in current status');
     }
 
     const updated = await this.prisma.parcelRequest.update({
@@ -591,83 +617,83 @@ export class ParcelService {
   }
 
   async completeRequest(userId: string, requestId: string) {
-      const request = await this.prisma.parcelRequest.findUnique({
-          where: { id: requestId },
-          include: { trip: true },
-      });
-      if (!request || request.deletedAt) {
-          throw new NotFoundException('Request not found');
-      }
-      
-      // Request owner confirms receipt? Or Trip owner confirms delivery?
-      // Usually Receiver confirms receipt. Since we don't have Receiver user, maybe Request Owner confirms.
-      if (request.userId !== userId) {
-          throw new ForbiddenException();
-      }
+    const request = await this.prisma.parcelRequest.findUnique({
+      where: { id: requestId },
+      include: { trip: true },
+    });
+    if (!request || request.deletedAt) {
+      throw new NotFoundException('Request not found');
+    }
 
-      if (request.status !== 'matched') {
-          throw new BadRequestException('Only matched requests can be completed');
-      }
+    // Request owner confirms receipt? Or Trip owner confirms delivery?
+    // Usually Receiver confirms receipt. Since we don't have Receiver user, maybe Request Owner confirms.
+    if (request.userId !== userId) {
+      throw new ForbiddenException();
+    }
 
-      const updated = await this.prisma.parcelRequest.update({
-          where: { id: requestId },
-          data: { status: 'completed' },
-      });
+    if (request.status !== 'matched') {
+      throw new BadRequestException('Only matched requests can be completed');
+    }
 
-      await this.logStateChange(
-          'ParcelRequest',
-          requestId,
-          request.status,
-          updated.status,
-          userId,
-          'complete',
-      );
-      
-      // Trigger Trust Score update for both parties
-      await this.trustService.recalculateForUser(userId); // Request Owner
-      if (request.trip?.userId) {
-        await this.trustService.recalculateForUser(request.trip.userId); // Trip Owner
-      }
+    const updated = await this.prisma.parcelRequest.update({
+      where: { id: requestId },
+      data: { status: 'completed' },
+    });
 
-      return updated;
+    await this.logStateChange(
+      'ParcelRequest',
+      requestId,
+      request.status,
+      updated.status,
+      userId,
+      'complete',
+    );
+
+    // Trigger Trust Score update for both parties
+    await this.trustService.recalculateForUser(userId); // Request Owner
+    if (request.trip?.userId) {
+      await this.trustService.recalculateForUser(request.trip.userId); // Trip Owner
+    }
+
+    return updated;
   }
 
   async searchTripsForRequest(requestId: string) {
-      const request = await this.prisma.parcelRequest.findUnique({
-          where: { id: requestId }
-      });
-      if (!request) throw new NotFoundException('Request not found');
+    const request = await this.prisma.parcelRequest.findUnique({
+      where: { id: requestId },
+    });
+    if (!request) throw new NotFoundException('Request not found');
 
-      return this.prisma.parcelTrip.findMany({
-          where: {
-              status: 'active',
-              fromCountry: request.fromCountry,
-              toCountry: request.toCountry,
-              maxWeightKg: { gte: request.weightKg },
-              departureDate: {
-                  gte: request.flexibleFromDate,
-                  lte: request.flexibleToDate
-              }
-          }
-      });
+    return this.prisma.parcelTrip.findMany({
+      where: {
+        status: 'active',
+        fromCountry: request.fromCountry,
+        toCountry: request.toCountry,
+        maxWeightKg: { gte: request.weightKg },
+        departureDate: {
+          gte: request.flexibleFromDate,
+          lte: request.flexibleToDate,
+        },
+      },
+    });
   }
 
   async searchRequestsForTrip(tripId: string) {
-      const trip = await this.prisma.parcelTrip.findUnique({
-          where: { id: tripId }
-      });
-      if (!trip) throw new NotFoundException('Trip not found');
+    const trip = await this.prisma.parcelTrip.findUnique({
+      where: { id: tripId },
+    });
+    if (!trip) throw new NotFoundException('Trip not found');
 
-      return this.prisma.parcelRequest.findMany({
-          where: {
-              status: 'active',
-              fromCountry: trip.fromCountry,
-              toCountry: trip.toCountry,
-              weightKg: { lte: trip.maxWeightKg },
-              flexibleFromDate: { lte: trip.departureDate },
-              flexibleToDate: { gte: trip.departureDate }
-          }
-      });
+    return this.prisma.parcelRequest.findMany({
+      where: {
+        status: 'active',
+        fromCountry: trip.fromCountry,
+        toCountry: trip.toCountry,
+        weightKg: { lte: trip.maxWeightKg },
+        flexibleFromDate: { lte: trip.departureDate },
+        flexibleToDate: { gte: trip.departureDate },
+      },
+    });
   }
 
   private async expireOldTrips() {
@@ -718,5 +744,41 @@ export class ParcelService {
         metadata: metadata ? (metadata as any) : undefined,
       },
     });
+  }
+
+  private async validateUserEligibility(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) throw new NotFoundException('User not found');
+    if (user.isSuspended) throw new ForbiddenException('User is suspended');
+
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const dailyTripCount = await this.prisma.parcelTrip.count({
+      where: {
+        userId,
+        createdAt: {
+          gte: startOfDay,
+        },
+      },
+    });
+
+    const dailyRequestCount = await this.prisma.parcelRequest.count({
+      where: {
+        userId,
+        createdAt: {
+          gte: startOfDay,
+        },
+      },
+    });
+
+    if (dailyTripCount + dailyRequestCount >= 5) {
+      throw new BadRequestException(
+        'Daily parcel posting limit reached (5 posts/day)',
+      );
+    }
   }
 }

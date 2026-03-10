@@ -27,24 +27,29 @@ export class TrustService {
           OR: [{ requesterId: userId }, { targetUserId: userId }],
         },
       });
-      
-    const completedParcelRequestsAsSender = await this.prisma.parcelRequest.count({
-      where: {
-        userId: userId,
-        status: 'completed',
-      },
-    });
 
-    const completedParcelRequestsAsCarrier = await this.prisma.parcelRequest.count({
-      where: {
-        trip: {
+    const completedParcelRequestsAsSender =
+      await this.prisma.parcelRequest.count({
+        where: {
           userId: userId,
+          status: 'completed',
         },
-        status: 'completed',
-      },
-    });
+      });
 
-    const totalCompleted = completedCurrencyTransactions + completedParcelRequestsAsSender + completedParcelRequestsAsCarrier;
+    const completedParcelRequestsAsCarrier =
+      await this.prisma.parcelRequest.count({
+        where: {
+          trip: {
+            userId: userId,
+          },
+          status: 'completed',
+        },
+      });
+
+    const totalCompleted =
+      completedCurrencyTransactions +
+      completedParcelRequestsAsSender +
+      completedParcelRequestsAsCarrier;
 
     const user = await this.prisma.user.findUniqueOrThrow({
       where: {

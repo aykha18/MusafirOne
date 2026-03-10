@@ -7,7 +7,7 @@ import { ThemedInput } from '@/components/themed-input';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { apiClient } from '@/api/client';
-import { CitySelector } from '@/components/city-selector';
+import { CountrySelector, Country } from '@/components/country-selector';
 import { DateTimePickerInput } from '@/components/date-time-picker-input';
 import { RatingModal, RatingData } from '@/components/rating-modal';
 import { DisputeModal } from '@/components/dispute-modal';
@@ -72,8 +72,8 @@ export default function ParcelScreen() {
   const [showRequestForm, setShowRequestForm] = useState(false);
   
   // Trip Form State
-  const [fromCity, setFromCity] = useState('');
-  const [toCity, setToCity] = useState('');
+  const [fromCountry, setFromCountry] = useState<Country | undefined>(undefined);
+  const [toCountry, setToCountry] = useState<Country | undefined>(undefined);
   const [departureDate, setDepartureDate] = useState<Date | undefined>(undefined);
   const [departureTime, setDepartureTime] = useState<Date | undefined>(undefined);
   const [arrivalDate, setArrivalDate] = useState<Date | undefined>(undefined);
@@ -84,8 +84,8 @@ export default function ParcelScreen() {
   // Request Form State
   const [reqItemType, setReqItemType] = useState('');
   const [reqWeightKg, setReqWeightKg] = useState('');
-  const [reqFromCity, setReqFromCity] = useState('');
-  const [reqToCity, setReqToCity] = useState('');
+  const [reqFromCountry, setReqFromCountry] = useState<Country | undefined>(undefined);
+  const [reqToCountry, setReqToCountry] = useState<Country | undefined>(undefined);
   const [reqFlexibleFromDate, setReqFlexibleFromDate] = useState<Date | undefined>(undefined);
   const [reqFlexibleToDate, setReqFlexibleToDate] = useState<Date | undefined>(undefined);
 
@@ -192,7 +192,7 @@ export default function ParcelScreen() {
     setCreatingBusy(true);
     setCreateError(null);
     try {
-      if (!fromCity || !toCity || !departureDate || !arrivalDate || !maxWeightKg) {
+      if (!fromCountry || !toCountry || !departureDate || !arrivalDate || !maxWeightKg) {
         throw new Error('Please fill in all required fields');
       }
 
@@ -218,16 +218,16 @@ export default function ParcelScreen() {
       }
 
       await apiClient.createParcelTrip({
-        fromCountry: fromCity,
-        toCountry: toCity,
+        fromCountry: fromCountry.name,
+        toCountry: toCountry.name,
         departureDate: finalDeparture.toISOString(),
         arrivalDate: finalArrival.toISOString(),
         maxWeightKg: maxWeight,
         allowedCategories,
       });
       
-      setFromCity('');
-      setToCity('');
+      setFromCountry(undefined);
+      setToCountry(undefined);
       setDepartureDate(undefined);
       setDepartureTime(undefined);
       setArrivalDate(undefined);
@@ -247,7 +247,7 @@ export default function ParcelScreen() {
     setCreatingBusy(true);
     setCreateError(null);
     try {
-      if (!reqItemType || !reqFromCity || !reqToCity || !reqFlexibleFromDate || !reqFlexibleToDate || !reqWeightKg) {
+      if (!reqItemType || !reqFromCountry || !reqToCountry || !reqFlexibleFromDate || !reqFlexibleToDate || !reqWeightKg) {
         throw new Error('Please fill in all required fields');
       }
 
@@ -256,18 +256,24 @@ export default function ParcelScreen() {
         throw new Error('Weight must be at least 0.1 kg');
       }
 
+      const flexibleFrom = new Date(reqFlexibleFromDate);
+      flexibleFrom.setHours(0, 0, 0, 0);
+
+      const flexibleTo = new Date(reqFlexibleToDate);
+      flexibleTo.setHours(23, 59, 59, 999);
+
       await apiClient.createParcelRequest({
         itemType: reqItemType,
         weightKg: weight,
-        fromCountry: reqFromCity,
-        toCountry: reqToCity,
-        flexibleFromDate: reqFlexibleFromDate.toISOString(),
-        flexibleToDate: reqFlexibleToDate.toISOString(),
+        fromCountry: reqFromCountry.name,
+        toCountry: reqToCountry.name,
+        flexibleFromDate: flexibleFrom.toISOString(),
+        flexibleToDate: flexibleTo.toISOString(),
       });
       
       setReqItemType('');
-      setReqFromCity('');
-      setReqToCity('');
+      setReqFromCountry(undefined);
+      setReqToCountry(undefined);
       setReqFlexibleFromDate(undefined);
       setReqFlexibleToDate(undefined);
       setReqWeightKg('');
@@ -298,7 +304,10 @@ export default function ParcelScreen() {
           if (trip.fromCountry !== request.fromCountry || trip.toCountry !== request.toCountry) return false;
           const tripDate = new Date(trip.departureDate);
           const reqFrom = new Date(request.flexibleFromDate);
+          reqFrom.setHours(0, 0, 0, 0);
           const reqTo = new Date(request.flexibleToDate);
+          reqTo.setHours(23, 59, 59, 999);
+          
           if (tripDate < reqFrom || tripDate > reqTo) return false;
           if (trip.maxWeightKg < request.weightKg) return false;
           return true;
@@ -340,6 +349,11 @@ export default function ParcelScreen() {
           const tripDate = new Date(trip.departureDate);
           const reqFrom = new Date(req.flexibleFromDate);
           const reqTo = new Date(req.flexibleToDate);
+          
+          // Reset times for date-only comparison
+          reqFrom.setHours(0, 0, 0, 0);
+          reqTo.setHours(23, 59, 59, 999);
+          
           if (tripDate < reqFrom || tripDate > reqTo) return false;
           if (req.weightKg > trip.maxWeightKg) return false;
           return true;
@@ -812,7 +826,21 @@ export default function ParcelScreen() {
       headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
       headerImage={null}>
       <ThemedView style={styles.header}>
-        <ThemedText type="title">Parcel</ThemedText>
+        <View>
+          <ThemedText type="title">Parcel Delivery</ThemedText>
+          <ThemedText style={{ fontSize: 14, color: '#666', marginBottom: 8 }}>
+            Send packages securely or earn money by traveling.
+          </ThemedText>
+          <ThemedText style={{ fontSize: 12, color: '#666', marginBottom: 2 }}>
+            • Use &quot;New Trip&quot; if you are traveling and can carry a parcel.
+          </ThemedText>
+          <ThemedText style={{ fontSize: 12, color: '#666', marginBottom: 2 }}>
+            • Use &quot;New Request&quot; if you need to send a parcel.
+          </ThemedText>
+          <ThemedText style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
+            Browse the lists below to find a match for your trip or parcel.
+          </ThemedText>
+        </View>
         <View style={styles.headerButtons}>
           <ThemedButton
             title={showTripForm ? 'Close trip form' : 'New trip'}
@@ -839,8 +867,8 @@ export default function ParcelScreen() {
       
       {showTripForm && (
         <View style={styles.form}>
-          <CitySelector placeholder="From City" value={fromCity} onChange={setFromCity} />
-          <CitySelector placeholder="To City" value={toCity} onChange={setToCity} />
+          <CountrySelector placeholder="From Country" value={fromCountry} onChange={setFromCountry} showDialCode={false} />
+          <CountrySelector placeholder="To Country" value={toCountry} onChange={setToCountry} showDialCode={false} />
           <View style={styles.row}>
             <View style={styles.flex1}>
               <DateTimePickerInput placeholder="Departure Date" value={departureDate || ''} onChange={setDepartureDate} mode="date" minimumDate={new Date()} />
@@ -864,7 +892,7 @@ export default function ParcelScreen() {
           <ThemedButton
             title="Create trip"
             onPress={handleCreateTrip}
-            disabled={creatingBusy || !fromCity || !toCity || !departureDate || !arrivalDate || !maxWeightKg}
+            disabled={creatingBusy || !fromCountry || !toCountry || !departureDate || !arrivalDate || !maxWeightKg}
             fullWidth
           />
         </View>
@@ -874,8 +902,8 @@ export default function ParcelScreen() {
         <View style={styles.form}>
           <ThemedInput placeholder="Item type" value={reqItemType} onChangeText={setReqItemType} />
           <ThemedInput placeholder="Weight (kg)" keyboardType="numeric" value={reqWeightKg} onChangeText={setReqWeightKg} />
-          <CitySelector placeholder="From City" value={reqFromCity} onChange={setReqFromCity} />
-          <CitySelector placeholder="To City" value={reqToCity} onChange={setReqToCity} />
+          <CountrySelector placeholder="From Country" value={reqFromCountry} onChange={setReqFromCountry} showDialCode={false} />
+          <CountrySelector placeholder="To Country" value={reqToCountry} onChange={setReqToCountry} showDialCode={false} />
           <View style={styles.row}>
              <View style={styles.flex1}>
                 <DateTimePickerInput placeholder="Flexible From" value={reqFlexibleFromDate || ''} onChange={setReqFlexibleFromDate} mode="date" minimumDate={new Date()} />
@@ -888,7 +916,7 @@ export default function ParcelScreen() {
           <ThemedButton
             title="Create request"
             onPress={handleCreateRequest}
-            disabled={creatingBusy || !reqItemType || !reqWeightKg || !reqFromCity || !reqToCity || !reqFlexibleFromDate || !reqFlexibleToDate}
+            disabled={creatingBusy || !reqItemType || !reqWeightKg || !reqFromCountry || !reqToCountry || !reqFlexibleFromDate || !reqFlexibleToDate}
             fullWidth
           />
         </View>
@@ -948,7 +976,7 @@ export default function ParcelScreen() {
                   disabled={matchingBusy}
                 >
                   <ThemedText type="defaultSemiBold">{new Date(item.departureDate).toLocaleDateString()}</ThemedText>
-                  <ThemedText>{item.fromCountry} -> {item.toCountry}</ThemedText>
+                  <ThemedText>{item.fromCountry} ➡️ {item.toCountry}</ThemedText>
                   <ThemedText>Max: {item.maxWeightKg}kg</ThemedText>
                 </TouchableOpacity>
               )}
@@ -987,7 +1015,7 @@ export default function ParcelScreen() {
                   disabled={matchingBusy}
                 >
                   <ThemedText type="defaultSemiBold">{item.itemType} ({item.weightKg}kg)</ThemedText>
-                  <ThemedText>{item.fromCountry} -> {item.toCountry}</ThemedText>
+                  <ThemedText>{item.fromCountry} ➡️ {item.toCountry}</ThemedText>
                   <ThemedText>{new Date(item.flexibleFromDate).toLocaleDateString()} - {new Date(item.flexibleToDate).toLocaleDateString()}</ThemedText>
                 </TouchableOpacity>
               )}

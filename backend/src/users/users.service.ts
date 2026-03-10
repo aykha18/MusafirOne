@@ -27,4 +27,39 @@ export class UsersService {
       },
     });
   }
+
+  async listAll(page: number = 1, limit: number = 20) {
+    const skip = (page - 1) * limit;
+    const [users, total] = await Promise.all([
+      this.prisma.user.findMany({
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        where: { deletedAt: null },
+      }),
+      this.prisma.user.count({ where: { deletedAt: null } }),
+    ]);
+    return {
+      items: users,
+      meta: {
+        total,
+        page,
+        lastPage: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  async suspendUser(id: string, isSuspended: boolean) {
+    return this.prisma.user.update({
+      where: { id },
+      data: { isSuspended },
+    });
+  }
+
+  async verifyUser(id: string, level: number) {
+    return this.prisma.user.update({
+      where: { id },
+      data: { verificationLevel: level },
+    });
+  }
 }

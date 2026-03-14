@@ -36,7 +36,11 @@ function GoogleSignInSection({
   const isAndroid = Platform.OS === 'android';
   const appOwnership = Constants.appOwnership;
   const useProxy = !isWeb && (appOwnership === 'expo' || appOwnership === 'guest');
-  const missingAndroidId = isAndroid && !useProxy && !androidClientId;
+  const hasValidAndroidClientId =
+    typeof androidClientId === 'string' &&
+    androidClientId.length > 0 &&
+    androidClientId.includes('.apps.googleusercontent.com');
+  const missingAndroidId = isAndroid && !useProxy && !hasValidAndroidClientId;
 
   if (missingAndroidId) {
     return (
@@ -46,7 +50,7 @@ function GoogleSignInSection({
             title="Sign in with Google"
             onPress={() =>
               onError(
-                'Google Sign-In is not configured for Android builds. Set google.androidClientId in app.json (or EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID in EAS).',
+                'Google Sign-In is not configured for Android builds. Set a valid androidClientId (ends with .apps.googleusercontent.com) in app.json (expo.extra.google.androidClientId) or via EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID in EAS.',
               )
             }
             disabled

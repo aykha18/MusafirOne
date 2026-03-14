@@ -53,7 +53,7 @@ function GoogleSignInSection({
                 'Google Sign-In is not configured for Android builds. Set a valid androidClientId (ends with .apps.googleusercontent.com) in app.json (expo.extra.google.androidClientId) or via EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID in EAS.',
               )
             }
-            disabled
+            disabled={false}
             fullWidth
             variant="secondary"
           />
@@ -135,8 +135,16 @@ function GoogleSignInEnabled({
       <View style={styles.row}>
         <ThemedButton
           title="Sign in with Google"
-          onPress={() => promptAsync({ useProxy })}
-          disabled={!request || busy}
+          onPress={() => {
+            if (!request) {
+              onError(
+                'Google Sign-In is not ready. Double-check google.androidClientId in app.json or EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID in EAS, then rebuild the APK.',
+              );
+              return;
+            }
+            promptAsync({ useProxy });
+          }}
+          disabled={busy}
           fullWidth
           variant="secondary"
         />
@@ -163,9 +171,9 @@ export default function HomeScreen() {
     process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ||
     undefined;
   const androidClientId =
-    googleExtra.androidClientId ||
-    process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ||
-    undefined;
+    (googleExtra.androidClientId ||
+      process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ||
+      '')?.trim() || undefined;
   const iosClientId =
     googleExtra.iosClientId ||
     process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ||

@@ -1,6 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { PrismaClient } from '@prisma/client';
+import {
+  PrismaClient,
+  User,
+  CurrencyPost,
+  CurrencyMatchRequest,
+  ParcelTrip,
+  ParcelRequest,
+} from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 
 function loadEnv() {
@@ -12,7 +19,7 @@ function loadEnv() {
       const m = /^([^=]+)=(.*)$/.exec(line.trim());
       if (m) {
         const key = m[1];
-        const val = m[2];
+        const val = m[2].trim();
         if (!process.env[key]) process.env[key] = val;
       }
     }
@@ -21,9 +28,18 @@ function loadEnv() {
 
 function getPrisma(): PrismaClient {
   loadEnv();
-  const connectionString = process.env.DATABASE_URL;
+  let connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
     throw new Error('DATABASE_URL not found');
+  }
+  if (
+    connectionString.includes('render.com') &&
+    !/sslmode=/.test(connectionString)
+  ) {
+    connectionString =
+      connectionString +
+      (connectionString.includes('?') ? '&' : '?') +
+      'sslmode=require';
   }
   const adapter = new PrismaPg({ connectionString });
   return new PrismaClient({ adapter });
@@ -105,7 +121,7 @@ async function main() {
     },
   ];
 
-  const createdUsers = [];
+  const createdUsers: User[] = [];
   for (const u of users) {
     const user = await prisma.user.upsert({
       where: { phoneNumber: u.phoneNumber },
@@ -126,6 +142,71 @@ async function main() {
     });
     createdUsers.push(user);
   }
+
+  const seededUserIds = createdUsers.map((u) => u.id);
+  await prisma.message.deleteMany({
+    where: {
+      conversation: {
+        OR: [
+          { user1Id: { in: seededUserIds } },
+          { user2Id: { in: seededUserIds } },
+        ],
+      },
+    },
+  });
+  await prisma.conversation.deleteMany({
+    where: {
+      OR: [
+        { user1Id: { in: seededUserIds } },
+        { user2Id: { in: seededUserIds } },
+      ],
+    },
+  });
+  await prisma.rating.deleteMany({
+    where: {
+      OR: [
+        { fromUserId: { in: seededUserIds } },
+        { toUserId: { in: seededUserIds } },
+      ],
+    },
+  });
+  await prisma.dispute.deleteMany({
+    where: {
+      OR: [
+        { raisedByUserId: { in: seededUserIds } },
+        { resolvedByAdminId: { in: seededUserIds } },
+      ],
+    },
+  });
+  await prisma.currencyMatchRequest.deleteMany({
+    where: {
+      OR: [
+        { requesterId: { in: seededUserIds } },
+        { targetUserId: { in: seededUserIds } },
+      ],
+    },
+  });
+  await prisma.currencyPost.deleteMany({
+    where: { userId: { in: seededUserIds } },
+  });
+  await prisma.parcelRequest.deleteMany({
+    where: { userId: { in: seededUserIds } },
+  });
+  await prisma.parcelTrip.deleteMany({
+    where: { userId: { in: seededUserIds } },
+  });
+  await prisma.pushToken.deleteMany({
+    where: { userId: { in: seededUserIds } },
+  });
+  await prisma.userDevice.deleteMany({
+    where: { userId: { in: seededUserIds } },
+  });
+  await prisma.refreshToken.deleteMany({
+    where: { userId: { in: seededUserIds } },
+  });
+  await prisma.stateChangeLog.deleteMany({
+    where: { changedByUserId: { in: seededUserIds } },
+  });
 
   const now = new Date();
   const in30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
@@ -173,7 +254,7 @@ async function main() {
     },
   ];
 
-  const createdCurrencyPosts = [];
+  const createdCurrencyPosts: CurrencyPost[] = [];
   for (const p of currencyPostsData) {
     const post = await prisma.currencyPost.create({
       data: {
@@ -192,15 +273,17 @@ async function main() {
 
   const matchRequestsData = [
     { postIdx: 0, requesterIdx: 2, status: 'pending' },
-    { postIdx: 1, requesterIdx: 2, status: 'accepted' },
+    { postIdx: 1, requesterIdx: 2, status: 'completed' },
     { postIdx: 2, requesterIdx: 5, status: 'pending' },
     { postIdx: 4, requesterIdx: 7, status: 'accepted' },
+    { postIdx: 3, requesterIdx: 6, status: 'disputed' },
   ];
 
+  const createdMatchRequests: CurrencyMatchRequest[] = [];
   for (const m of matchRequestsData) {
     const post = createdCurrencyPosts[m.postIdx];
     const requester = createdUsers[m.requesterIdx];
-    await prisma.currencyMatchRequest.create({
+    const mr = await prisma.currencyMatchRequest.create({
       data: {
         currencyPostId: post.id,
         requesterId: requester.id,
@@ -208,6 +291,7 @@ async function main() {
         status: m.status as any,
       },
     });
+    createdMatchRequests.push(mr);
   }
 
   const tripsData = [
@@ -243,7 +327,7 @@ async function main() {
     },
   ];
 
-  const createdTrips = [];
+  const createdTrips: ParcelTrip[] = [];
   for (const t of tripsData) {
     const trip = await prisma.parcelTrip.create({
       data: {
@@ -319,10 +403,35 @@ async function main() {
       toDays: 16,
       status: 'active',
     },
+    {
+      userIdx: 6,
+      itemType: 'Medicines',
+      weightKg: 1.5,
+      fromCountry: 'Bangladesh',
+      toCountry: 'United Arab Emirates',
+      fromDays: 1,
+      toDays: 8,
+      status: 'completed',
+      tripIdx: 0,
+      initiatedByIdx: 6,
+    },
+    {
+      userIdx: 4,
+      itemType: 'Shoes',
+      weightKg: 3,
+      fromCountry: 'Pakistan',
+      toCountry: 'Qatar',
+      fromDays: 3,
+      toDays: 11,
+      status: 'matched',
+      tripIdx: 1,
+      initiatedByIdx: 4,
+    },
   ];
 
+  const createdParcelRequests: ParcelRequest[] = [];
   for (const r of requestsData) {
-    await prisma.parcelRequest.create({
+    const pr = await prisma.parcelRequest.create({
       data: {
         userId: createdUsers[r.userIdx].id,
         tripId:
@@ -342,6 +451,188 @@ async function main() {
           now.getTime() + r.toDays * 24 * 60 * 60 * 1000,
         ),
         status: r.status as any,
+      },
+    });
+    createdParcelRequests.push(pr);
+  }
+
+  const orderPair = (a: string, b: string): [string, string] =>
+    a.localeCompare(b) <= 0 ? [a, b] : [b, a];
+
+  for (const mr of createdMatchRequests.filter((m) => m.status !== 'pending')) {
+    const [user1Id, user2Id] = orderPair(mr.requesterId, mr.targetUserId);
+    const convo = await prisma.conversation.create({
+      data: {
+        user1Id,
+        user2Id,
+        matchRequestId: mr.id,
+      },
+    });
+
+    const msg1 =
+      mr.status === 'disputed'
+        ? 'Hi, there is an issue with the exchange. Can we clarify?'
+        : 'Hi! I saw your exchange post. Are you available today?';
+    const msg2 =
+      mr.status === 'completed'
+        ? 'Yes, completed the exchange. Thanks!'
+        : 'Yes, let’s confirm amount, rate, and location.';
+    const msg3 =
+      mr.status === 'disputed'
+        ? 'The rate changed at meeting time. I want to raise a dispute.'
+        : 'Great. I can meet near the metro station.';
+    const msg4 = 'Okay, noted.';
+
+    const sequence: Array<{ senderId: string; content: string }> = [
+      { senderId: mr.requesterId, content: msg1 },
+      { senderId: mr.targetUserId, content: msg2 },
+      { senderId: mr.requesterId, content: msg3 },
+      { senderId: mr.targetUserId, content: msg4 },
+    ];
+
+    for (const m of sequence) {
+      await prisma.message.create({
+        data: {
+          conversationId: convo.id,
+          senderId: m.senderId,
+          content: m.content,
+          isRead: true,
+        },
+      });
+    }
+    await prisma.conversation.update({
+      where: { id: convo.id },
+      data: { updatedAt: new Date() },
+    });
+  }
+
+  for (const pr of createdParcelRequests.filter((r) => r.tripId)) {
+    const tripOwnerId = createdTrips.find((t) => t.id === pr.tripId)?.userId;
+    if (!tripOwnerId) continue;
+    const [user1Id, user2Id] = orderPair(pr.userId, tripOwnerId);
+    const convo = await prisma.conversation.create({
+      data: {
+        user1Id,
+        user2Id,
+        parcelRequestId: pr.id,
+      },
+    });
+
+    const msg1 = 'Hi! Can you carry my package on your trip?';
+    const msg2 =
+      pr.status === 'completed'
+        ? 'Delivered successfully. Please confirm received.'
+        : 'Yes, share pickup and delivery details.';
+    const msg3 =
+      pr.status === 'matched'
+        ? 'Perfect. I will hand it over before departure.'
+        : 'Thanks. I will send the address now.';
+    const msg4 = 'Okay.';
+
+    const sequence: Array<{ senderId: string; content: string }> = [
+      { senderId: pr.userId, content: msg1 },
+      { senderId: tripOwnerId, content: msg2 },
+      { senderId: pr.userId, content: msg3 },
+      { senderId: tripOwnerId, content: msg4 },
+    ];
+
+    for (const m of sequence) {
+      await prisma.message.create({
+        data: {
+          conversationId: convo.id,
+          senderId: m.senderId,
+          content: m.content,
+          isRead: true,
+        },
+      });
+    }
+    await prisma.conversation.update({
+      where: { id: convo.id },
+      data: { updatedAt: new Date() },
+    });
+  }
+
+  const completedMr = createdMatchRequests.find(
+    (m) => m.status === 'completed',
+  );
+  if (completedMr) {
+    await prisma.rating.create({
+      data: {
+        matchRequestId: completedMr.id,
+        fromUserId: completedMr.requesterId,
+        toUserId: completedMr.targetUserId,
+        reliabilityScore: 5,
+        communicationScore: 5,
+        timelinessScore: 5,
+        comment: 'Smooth exchange and clear communication.',
+      },
+    });
+    await prisma.rating.create({
+      data: {
+        matchRequestId: completedMr.id,
+        fromUserId: completedMr.targetUserId,
+        toUserId: completedMr.requesterId,
+        reliabilityScore: 5,
+        communicationScore: 4,
+        timelinessScore: 5,
+        comment: 'On time and polite.',
+      },
+    });
+  }
+
+  const completedPr = createdParcelRequests.find(
+    (r) => r.status === 'completed',
+  );
+  if (completedPr) {
+    const tripOwnerId = createdTrips.find(
+      (t) => t.id === completedPr.tripId,
+    )?.userId;
+    if (tripOwnerId) {
+      await prisma.rating.create({
+        data: {
+          parcelRequestId: completedPr.id,
+          fromUserId: completedPr.userId,
+          toUserId: tripOwnerId,
+          reliabilityScore: 5,
+          communicationScore: 5,
+          timelinessScore: 5,
+          comment: 'Delivered safely. Highly recommended.',
+        },
+      });
+      await prisma.rating.create({
+        data: {
+          parcelRequestId: completedPr.id,
+          fromUserId: tripOwnerId,
+          toUserId: completedPr.userId,
+          reliabilityScore: 5,
+          communicationScore: 4,
+          timelinessScore: 5,
+          comment: 'Pickup was smooth and details were clear.',
+        },
+      });
+    }
+  }
+
+  const disputedMr = createdMatchRequests.find((m) => m.status === 'disputed');
+  if (disputedMr) {
+    await prisma.dispute.create({
+      data: {
+        matchRequestId: disputedMr.id,
+        raisedByUserId: disputedMr.requesterId,
+        reason: 'Rate differed from agreed terms at meeting time.',
+        status: 'open',
+      },
+    });
+  }
+
+  const disputedPr = createdParcelRequests.find((r) => r.status === 'matched');
+  if (disputedPr) {
+    await prisma.dispute.create({
+      data: {
+        parcelRequestId: disputedPr.id,
+        raisedByUserId: disputedPr.userId,
+        reason: 'Package pickup location changed last minute.',
+        status: 'open',
       },
     });
   }

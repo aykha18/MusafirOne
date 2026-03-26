@@ -139,10 +139,8 @@ export class AuthService {
       return this.issueTokens(user.id, user.phoneNumber);
     } catch (error) {
       this.logger.error(`Google Verify Error details:`, error);
-      if (error instanceof Error) {
-          this.logger.error(`Error message: ${error.message}`);
-      }
-      throw new UnauthorizedException('Invalid Google Token');
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+      throw new UnauthorizedException(`Google Token Error: ${msg}`);
     }
   }
 

@@ -37,7 +37,7 @@ export default function AdminScreen() {
             const stats = await apiClient.getUserStats(user.id);
             return { ...user, stats };
           } catch (e) {
-            console.error(`Failed to load stats for user ${user.id}`, e);
+            // console.error(`Failed to load stats for user ${user.id}`, e);
             return user;
           }
         })

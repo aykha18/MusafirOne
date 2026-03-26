@@ -48,9 +48,8 @@ export default function ChatScreen() {
               setMessages((prev) => [msg, ...prev]);
             }
           });
-        }
-      } catch (e) {
-        console.error(e);
+    } } catch (e) {
+      // console.error(e);
       } finally {
         setLoading(false);
       }

@@ -36,7 +36,7 @@ export default function ProfileScreen() {
       const data = await apiClient.getMe();
       setUser(data as UserProfile);
     } catch (e) {
-      console.error(e);
+      // console.error(e);
       Alert.alert('Error', 'Failed to load profile');
     } finally {
       setLoading(false);
@@ -44,27 +44,29 @@ export default function ProfileScreen() {
   };
 
   const handleLogout = async () => {
-    console.log('Logout button pressed');
+    // console.log('Logout button pressed');
     Alert.alert(
       'Logout',
       'Are you sure you want to logout?',
       [
-        { text: 'Cancel', style: 'cancel', onPress: () => console.log('Logout cancelled') },
+        { text: 'Cancel', style: 'cancel', onPress: () => {
+          // console.log('Logout cancelled');
+        } },
         {
           text: 'Logout',
           style: 'destructive',
           onPress: async () => {
-            console.log('Logout confirmed');
+            // console.log('Logout confirmed');
             try {
               disconnectSocket();
               await apiClient.setTokens(null);
-              console.log('Tokens cleared');
+              // console.log('Tokens cleared');
               
               // Navigate to the index tab specifically
               // Use navigate instead of replace to ensure tab switching works
               router.navigate('/(tabs)/index');
             } catch (e) {
-              console.error('Logout error:', e);
+              // console.error('Logout error:', e);
               Alert.alert('Error', 'Failed to logout');
             }
           },

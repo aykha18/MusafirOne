@@ -28,7 +28,7 @@ export default function ChatListScreen() {
       setMyId(me.id);
       setConversations(chats);
     } catch (e) {
-      console.error(e);
+      // console.error(e);
     } finally {
       setLoading(false);
       setRefreshing(false);

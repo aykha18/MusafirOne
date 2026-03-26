@@ -29,19 +29,19 @@ export default function RootLayout() {
 
   useEffect(() => {
     async function prepare() {
-      console.log('App preparation starting...');
+      // console.log('App preparation starting...');
       try {
-        console.log('Initializing API client...');
+        // console.log('Initializing API client...');
         await apiClient.init();
-        console.log('API client initialized.');
+        // console.log('API client initialized.');
       } catch (e) {
         console.warn('App preparation error:', e);
         Alert.alert('Startup Error', String(e));
       } finally {
-        console.log('Hiding splash screen...');
+        // console.log('Hiding splash screen...');
         setAppIsReady(true);
         await SplashScreen.hideAsync();
-        console.log('App preparation finished.');
+        // console.log('App preparation finished.');
       }
     }
 

@@ -244,7 +244,7 @@ export default function CurrencyScreen() {
       router.push(`/chat/${conversation.id}`);
     } catch (e) {
       Alert.alert('Error', 'Could not start conversation');
-      console.error(e);
+      // console.error(e);
     } finally {
       setBusy(false);
     }

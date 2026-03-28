@@ -36,7 +36,52 @@ export type UpdateProfilePayload = {
   fullName?: string;
   city?: string;
   corridor?: string;
-  verificationLevel?: number;
+};
+
+export type DisputeStatus = 'open' | 'under_review' | 'resolved_valid' | 'resolved_invalid';
+
+export type Dispute = {
+  id: string;
+  matchRequestId?: string | null;
+  parcelRequestId?: string | null;
+  raisedByUserId: string;
+  reason: string;
+  status: DisputeStatus;
+  createdAt: string;
+  resolvedAt?: string | null;
+  resolvedByAdminId?: string | null;
+  matchRequest?: unknown;
+  parcelRequest?: unknown;
+};
+
+export type VerificationDocumentType =
+  | 'id_card'
+  | 'passport'
+  | 'driver_license'
+  | 'residence_permit'
+  | 'selfie';
+
+export type VerificationDocumentStatus =
+  | 'submitted'
+  | 'under_review'
+  | 'approved'
+  | 'rejected';
+
+export type VerificationDocument = {
+  id: string;
+  userId: string;
+  type: VerificationDocumentType;
+  status: VerificationDocumentStatus;
+  fileName: string;
+  mimeType: string;
+  storagePath: string;
+  createdAt: string;
+  updatedAt: string;
+  reviewedAt?: string | null;
+  reviewedByAdminId?: string | null;
+  rejectionReason?: string | null;
+  user?: User;
+  reviewedByAdmin?: User | null;
 };
 
 export type CreateCurrencyPostPayload = {
@@ -389,6 +434,65 @@ export class ApiClient {
     return this.post('/disputes', payload);
   }
 
+  async listMyDisputes() {
+    return this.get<Dispute[]>('/disputes/me');
+  }
+
+  async listAllDisputes() {
+    return this.get<Dispute[]>('/disputes');
+  }
+
+  async resolveDispute(disputeId: string, status: DisputeStatus) {
+    return this.post(`/disputes/${disputeId}/resolve`, { status });
+  }
+
+  async listMyVerificationDocuments() {
+    return this.get<VerificationDocument[]>('/verification/documents/me');
+  }
+
+  async uploadVerificationDocument(payload: {
+    type: VerificationDocumentType;
+    uri: string;
+    name: string;
+    mimeType: string;
+  }) {
+    const formData = new FormData();
+    formData.append('type', payload.type);
+    formData.append(
+      'file',
+      {
+        uri: payload.uri,
+        name: payload.name,
+        type: payload.mimeType,
+      } as any,
+    );
+    return this.postFormData<VerificationDocument>(
+      '/verification/documents',
+      formData,
+    );
+  }
+
+  async listAllVerificationDocuments(params?: {
+    status?: VerificationDocumentStatus;
+    userId?: string;
+  }) {
+    return this.get<VerificationDocument[]>(
+      '/admin/verification/documents',
+      params,
+    );
+  }
+
+  async reviewVerificationDocument(payload: {
+    id: string;
+    status: VerificationDocumentStatus;
+    rejectionReason?: string;
+  }) {
+    return this.post<VerificationDocument>(
+      `/admin/verification/documents/${payload.id}/review`,
+      { status: payload.status, rejectionReason: payload.rejectionReason },
+    );
+  }
+
   async getConversations() {
     return this.get<Conversation[]>('/chat/conversations');
   }
@@ -441,6 +545,23 @@ export class ApiClient {
     return this.handleResponse<TResponse>(response);
   }
 
+  private async postFormData<TResponse = unknown>(
+    path: string,
+    formData: FormData,
+  ): Promise<TResponse> {
+    const url = this.buildUrl(path);
+    const response = await this.fetchWithAuthRetry(
+      url,
+      {
+        method: 'POST',
+        body: formData,
+      },
+      true,
+      'form',
+    );
+    return this.handleResponse<TResponse>(response);
+  }
+
   private async patch<TResponse = unknown>(
     path: string,
     body: unknown,
@@ -475,11 +596,16 @@ export class ApiClient {
     return url;
   }
 
-  private buildHeaders(withAuth: boolean): Record<string, string> {
+  private buildHeaders(
+    withAuth: boolean,
+    contentType: 'json' | 'form' = 'json',
+  ): Record<string, string> {
     const headers: Record<string, string> = {
       Accept: 'application/json',
-      'Content-Type': 'application/json',
     };
+    if (contentType === 'json') {
+      headers['Content-Type'] = 'application/json';
+    }
     if (!withAuth) {
       delete headers.Authorization;
       return headers;
@@ -494,8 +620,9 @@ export class ApiClient {
     url: string,
     init: RequestInit,
     withAuth = true,
+    contentType: 'json' | 'form' = 'json',
   ): Promise<Response> {
-    const firstHeaders = this.buildHeaders(withAuth);
+    const firstHeaders = this.buildHeaders(withAuth, contentType);
     const first = await fetch(url, {
       ...init,
       headers: firstHeaders,
@@ -509,7 +636,7 @@ export class ApiClient {
       await this.setTokens(null);
       return first;
     }
-    const retryHeaders = this.buildHeaders(withAuth);
+    const retryHeaders = this.buildHeaders(withAuth, contentType);
     return fetch(url, {
       ...init,
       headers: retryHeaders,

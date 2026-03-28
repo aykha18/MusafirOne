@@ -194,17 +194,22 @@ export class DisputesService {
       return updated;
     }
 
-    if (dto.status === DisputeStatus.RESOLVED_VALID) {
-      const validCount = await this.countValidDisputesAgainst(targetUserId);
-      if (validCount >= 3) {
-        await this.prisma.user.update({
-          where: {
-            id: targetUserId,
-          },
-          data: {
-            isSuspended: true,
-          },
-        });
+    if (
+      dto.status === DisputeStatus.RESOLVED_VALID ||
+      dto.status === DisputeStatus.RESOLVED_INVALID
+    ) {
+      if (dto.status === DisputeStatus.RESOLVED_VALID) {
+        const validCount = await this.countValidDisputesAgainst(targetUserId);
+        if (validCount >= 3) {
+          await this.prisma.user.update({
+            where: {
+              id: targetUserId,
+            },
+            data: {
+              isSuspended: true,
+            },
+          });
+        }
       }
       await this.trustService.recalculateForUser(targetUserId);
     }

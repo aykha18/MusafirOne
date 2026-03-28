@@ -178,7 +178,7 @@ export default function OAuthRedirect() {
 
         setMessage('Signing into MuhajirOne…');
         await apiClient.googleLogin(idToken, 'demo-device');
-        router.replace('/(tabs)/currency');
+        router.replace('/currency');
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
         setMessage('Sign-in did not complete');
@@ -198,7 +198,7 @@ export default function OAuthRedirect() {
             {error}
           </ThemedText>
           <View style={{ height: 16 }} />
-          <ThemedButton title="Back to Sign In" onPress={() => router.replace('/(tabs)')} />
+          <ThemedButton title="Back to Sign In" onPress={() => router.replace('/')} />
         </>
       ) : null}
     </ThemedView>

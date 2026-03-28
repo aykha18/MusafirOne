@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { FlatList, StyleSheet, View, Alert, Modal, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import ParallaxScrollView from '@/components/parallax-scroll-view';
@@ -13,6 +13,7 @@ import { RatingModal, RatingData } from '@/components/rating-modal';
 import { DisputeModal } from '@/components/dispute-modal';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import parcelItemTypes from '@/data/parcel-item-types.json';
 
 type ParcelTrip = {
   id: string;
@@ -39,6 +40,11 @@ type ParcelRequest = {
   status: string;
   tripId?: string;
   matchInitiatedByUserId?: string;
+};
+
+type ParcelItemTypeOption = {
+  id: string;
+  label: string;
 };
 
 export default function ParcelScreen() {
@@ -89,6 +95,15 @@ export default function ParcelScreen() {
   const [reqFlexibleFromDate, setReqFlexibleFromDate] = useState<Date | undefined>(undefined);
   const [reqFlexibleToDate, setReqFlexibleToDate] = useState<Date | undefined>(undefined);
 
+  const itemTypeOptions = parcelItemTypes as ParcelItemTypeOption[];
+
+  const [filtersVisible, setFiltersVisible] = useState(false);
+  const [filterMineOnly, setFilterMineOnly] = useState(false);
+  const [filterFromCountry, setFilterFromCountry] = useState<Country | undefined>(undefined);
+  const [filterToCountry, setFilterToCountry] = useState<Country | undefined>(undefined);
+  const [filterItemType, setFilterItemType] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+
   const [creatingBusy, setCreatingBusy] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -130,11 +145,11 @@ export default function ParcelScreen() {
 
       // 2. Load My Lists First (to ensure we have them)
       const myTripsResult = await apiClient.listMyParcelTrips();
-      const myTripsList = (myTripsResult as any) ?? [] as ParcelTrip[];
+      const myTripsList = ((myTripsResult as any) ?? []) as ParcelTrip[];
       setMyTrips(myTripsList);
 
       const myRequestsResult = await apiClient.listMyParcelRequests();
-      const myRequestsList = (myRequestsResult as any) ?? [] as ParcelRequest[];
+      const myRequestsList = ((myRequestsResult as any) ?? []) as ParcelRequest[];
       setMyRequests(myRequestsList);
 
       // 3. Load Public Lists
@@ -552,7 +567,7 @@ export default function ParcelScreen() {
           )}
         </View>
         <ThemedText>Depart: {new Date(item.departureDate).toLocaleDateString()} {new Date(item.departureDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</ThemedText>
-        <ThemedText>Arrive: {new Date(item.arrivalDate).toLocaleDateString()}</ThemedText>
+        <ThemedText>Arrive: {new Date(item.arrivalDate).toLocaleDateString()} {new Date(item.arrivalDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</ThemedText>
         <ThemedText>Max Weight: {item.maxWeightKg} kg</ThemedText>
         {item.allowedCategories && <ThemedText>Categories: {item.allowedCategories}</ThemedText>}
         
@@ -599,35 +614,37 @@ export default function ParcelScreen() {
     )}
 
     {isMyTrip && item.status === 'active' && (
-           <View style={styles.cardActions}>
+           <View style={[styles.cardActions, { justifyContent: 'space-between' }]}>
              <ThemedButton 
                title="Find Packages" 
                onPress={() => findRequestsForTrip(item)} 
                disabled={busy || matchingBusy}
-               style={{ marginRight: 8 }}
+               style={{ flex: 1, marginRight: 8 }}
              />
              <ThemedButton 
                title="Complete Trip" 
                onPress={() => handleCompleteTrip(item.id)} 
                disabled={busy}
                variant="secondary"
+               style={{ flex: 1 }}
              />
            </View>
         )}
 
         {!isMyTrip && item.status === 'active' && (
-       <View style={styles.cardActions}>
+       <View style={[styles.cardActions, { justifyContent: 'space-between' }]}>
          <ThemedButton 
            title="Send Package" 
            onPress={() => findRequestsForTrip(item)} 
            disabled={matchingBusy}
-           style={{ marginRight: 8 }}
+           style={{ flex: 1, marginRight: 8 }}
          />
          <ThemedButton 
            title="Chat" 
            onPress={() => handleMessage(item.userId)} 
            disabled={matchingBusy}
            variant="secondary"
+           style={{ flex: 1 }}
          />
        </View>
     )}
@@ -821,6 +838,100 @@ export default function ParcelScreen() {
     );
   };
 
+  const normalize = (value: string) => value.trim().toLowerCase();
+
+  const matchesCountryFilter = (value: string, country?: Country) => {
+    if (!country) return true;
+    const v = normalize(value);
+    return v === normalize(country.name) || v === normalize(country.code);
+  };
+
+  const matchesTextFilter = (value: string | undefined, filter: string) => {
+    if (!filter) return true;
+    return normalize(value ?? '').includes(normalize(filter));
+  };
+
+  const filteredRequests = useMemo(() => {
+    return requests.filter((r) => {
+      if (filterMineOnly && myUserId && r.userId !== myUserId) return false;
+      if (!matchesCountryFilter(r.fromCountry, filterFromCountry)) return false;
+      if (!matchesCountryFilter(r.toCountry, filterToCountry)) return false;
+      if (!matchesTextFilter(r.itemType, filterItemType)) return false;
+      if (!matchesTextFilter(r.status, filterStatus)) return false;
+      return true;
+    });
+  }, [requests, filterMineOnly, myUserId, filterFromCountry, filterToCountry, filterItemType, filterStatus]);
+
+  const filteredTrips = useMemo(() => {
+    return trips.filter((t) => {
+      if (filterMineOnly && myUserId && t.userId !== myUserId) return false;
+      if (!matchesCountryFilter(t.fromCountry, filterFromCountry)) return false;
+      if (!matchesCountryFilter(t.toCountry, filterToCountry)) return false;
+      if (!matchesTextFilter(t.allowedCategories, filterItemType)) return false;
+      if (!matchesTextFilter(t.status, filterStatus)) return false;
+      return true;
+    });
+  }, [trips, filterMineOnly, myUserId, filterFromCountry, filterToCountry, filterItemType, filterStatus]);
+
+  function ItemTypeSelector({
+    value,
+    onChange,
+    placeholder,
+  }: {
+    value: string;
+    onChange: (value: string) => void;
+    placeholder: string;
+  }) {
+    const [modalVisible, setModalVisible] = useState(false);
+    const [search, setSearch] = useState('');
+
+    const filtered = itemTypeOptions.filter((opt) =>
+      opt.label.toLowerCase().includes(search.toLowerCase()),
+    );
+
+    return (
+      <>
+        <ThemedInput
+          value={value}
+          onChangeText={() => {}}
+          placeholder={placeholder}
+          onPress={() => setModalVisible(true)}
+        />
+        <Modal
+          visible={modalVisible}
+          animationType="slide"
+          onRequestClose={() => setModalVisible(false)}
+        >
+          <ThemedView style={{ flex: 1, paddingTop: 48, paddingHorizontal: 16 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <ThemedText type="subtitle">{placeholder}</ThemedText>
+              <ThemedButton title="Close" variant="secondary" onPress={() => setModalVisible(false)} />
+            </View>
+            <ThemedInput value={search} onChangeText={setSearch} placeholder="Search item type" />
+            <FlatList
+              data={filtered}
+              keyExtractor={(item) => item.id}
+              keyboardShouldPersistTaps="handled"
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={{ paddingVertical: 12 }}
+                  onPress={() => {
+                    onChange(item.label);
+                    setModalVisible(false);
+                    setSearch('');
+                  }}
+                >
+                  <ThemedText type="defaultSemiBold">{item.label}</ThemedText>
+                </TouchableOpacity>
+              )}
+              ItemSeparatorComponent={() => <View style={[styles.separator, { opacity: 0.2 }]} />}
+            />
+          </ThemedView>
+        </Modal>
+      </>
+    );
+  }
+
   return (
     <ParallaxScrollView
       headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
@@ -900,7 +1011,7 @@ export default function ParcelScreen() {
 
       {showRequestForm && (
         <View style={styles.form}>
-          <ThemedInput placeholder="Item type" value={reqItemType} onChangeText={setReqItemType} />
+          <ItemTypeSelector placeholder="Item type" value={reqItemType} onChange={setReqItemType} />
           <ThemedInput placeholder="Weight (kg)" keyboardType="numeric" value={reqWeightKg} onChangeText={setReqWeightKg} />
           <CountrySelector placeholder="From Country" value={reqFromCountry} onChange={setReqFromCountry} showDialCode={false} />
           <CountrySelector placeholder="To Country" value={reqToCountry} onChange={setReqToCountry} showDialCode={false} />
@@ -935,9 +1046,68 @@ export default function ParcelScreen() {
         </TouchableOpacity>
       </View>
 
+      <View style={styles.filterButtons}>
+        <ThemedButton
+          title={filtersVisible ? 'Hide filters' : 'Filters'}
+          variant="secondary"
+          onPress={() => setFiltersVisible((v) => !v)}
+          disabled={busy}
+          style={{ flex: 1, marginRight: 8 }}
+        />
+        <ThemedButton
+          title="Clear"
+          variant="secondary"
+          onPress={() => {
+            setFilterMineOnly(false);
+            setFilterFromCountry(undefined);
+            setFilterToCountry(undefined);
+            setFilterItemType('');
+            setFilterStatus('');
+          }}
+          disabled={busy}
+          style={{ width: 110 }}
+        />
+      </View>
+
+      {filtersVisible && (
+        <View style={styles.form}>
+          <View style={styles.filterRow}>
+            <ThemedButton
+              title={filterMineOnly ? 'Mine only: ON' : 'Mine only: OFF'}
+              variant="secondary"
+              onPress={() => setFilterMineOnly((v) => !v)}
+              disabled={busy}
+              fullWidth
+            />
+          </View>
+          <CountrySelector
+            placeholder="From Country"
+            value={filterFromCountry}
+            onChange={setFilterFromCountry}
+            showDialCode={false}
+          />
+          <CountrySelector
+            placeholder="To Country"
+            value={filterToCountry}
+            onChange={setFilterToCountry}
+            showDialCode={false}
+          />
+          <ItemTypeSelector
+            placeholder={viewMode === 'requests' ? 'Item type' : 'Category'}
+            value={filterItemType}
+            onChange={setFilterItemType}
+          />
+          <ThemedInput
+            placeholder="Status (e.g. active, pending, matched, completed)"
+            value={filterStatus}
+            onChangeText={setFilterStatus}
+          />
+        </View>
+      )}
+
       {viewMode === 'requests' ? (
         <FlatList
-          data={requests}
+          data={filteredRequests}
           keyExtractor={(item) => item.id}
           renderItem={renderRequestItem}
           scrollEnabled={false}
@@ -946,7 +1116,7 @@ export default function ParcelScreen() {
         />
       ) : (
         <FlatList
-          data={trips}
+          data={filteredTrips}
           keyExtractor={(item) => item.id}
           renderItem={renderTripItem}
           scrollEnabled={false}
@@ -1134,6 +1304,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#eee',
     borderRadius: 8,
     padding: 4,
+  },
+  filterButtons: {
+    flexDirection: 'row',
+    marginHorizontal: 16,
+    marginBottom: 8,
+  },
+  filterRow: {
+    width: '100%',
   },
   tab: {
     flex: 1,

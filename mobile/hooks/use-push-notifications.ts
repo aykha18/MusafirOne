@@ -9,6 +9,8 @@ import { useRouter } from 'expo-router';
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
   }),
@@ -17,8 +19,8 @@ Notifications.setNotificationHandler({
 export function usePushNotifications() {
   const [expoPushToken, setExpoPushToken] = useState<string | undefined>();
   const [notification, setNotification] = useState<Notifications.Notification | undefined>();
-  const notificationListener = useRef<Notifications.Subscription>();
-  const responseListener = useRef<Notifications.Subscription>();
+  const notificationListener = useRef<Notifications.Subscription | null>(null);
+  const responseListener = useRef<Notifications.Subscription | null>(null);
   const router = useRouter();
 
   async function registerForPushNotificationsAsync() {
@@ -90,13 +92,16 @@ export function usePushNotifications() {
 
       responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
         if (!isMounted) return;
-        const data = response.notification.request.content.data;
-        if (data?.conversationId) {
-            router.push(`/chat/${data.conversationId}`);
-        } else if (data?.type?.startsWith('parcel_')) {
-            router.push('/parcel');
-        } else if (data?.type?.startsWith('currency_')) {
-            router.push('/currency');
+        const data = response.notification.request.content.data as Record<string, unknown>;
+        const conversationId = typeof data.conversationId === 'string' ? data.conversationId : undefined;
+        const type = typeof data.type === 'string' ? data.type : '';
+
+        if (conversationId) {
+          router.push(`/chat/${conversationId}`);
+        } else if (type.startsWith('parcel_')) {
+          router.push('/parcel');
+        } else if (type.startsWith('currency_')) {
+          router.push('/currency');
         }
       });
     } catch (error) {
@@ -106,8 +111,8 @@ export function usePushNotifications() {
     return () => {
       isMounted = false;
       try {
-        if(notificationListener.current) notificationListener.current.remove();
-        if(responseListener.current) responseListener.current.remove();
+        notificationListener.current?.remove();
+        responseListener.current?.remove();
       } catch (error) {
         console.error('Error removing notification listeners:', error);
       }

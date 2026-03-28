@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { FlatList, StyleSheet, View, Alert, TouchableOpacity } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { StyleSheet, View, Alert, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedButton } from '@/components/themed-button';
@@ -9,7 +9,6 @@ import { ThemedView } from '@/components/themed-view';
 import { CitySelector } from '@/components/city-selector';
 import { CurrencySelector } from '@/components/currency-selector';
 import { apiClient } from '@/api/client';
-import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 import { RatingModal, RatingData } from '@/components/rating-modal';
@@ -56,6 +55,16 @@ export default function CurrencyScreen() {
   const [amount, setAmount] = useState('');
   const [preferredRate, setPreferredRate] = useState('');
   const [city, setCity] = useState('');
+
+  const [filtersVisible, setFiltersVisible] = useState(false);
+  const [filterMineOnly, setFilterMineOnly] = useState(false);
+  const [filterHaveCurrency, setFilterHaveCurrency] = useState('');
+  const [filterNeedCurrency, setFilterNeedCurrency] = useState('');
+  const [filterCity, setFilterCity] = useState('');
+  const [filterPostStatus, setFilterPostStatus] = useState('');
+  const [filterRequestStatus, setFilterRequestStatus] = useState('');
+  const [filterIncoming, setFilterIncoming] = useState(true);
+  const [filterOutgoing, setFilterOutgoing] = useState(true);
   
   const [creatingBusy, setCreatingBusy] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -467,6 +476,32 @@ export default function CurrencyScreen() {
     }
   };
 
+  const normalize = (value: string) => value.trim().toLowerCase();
+
+  const filteredPosts = useMemo(() => {
+    return posts.filter((p) => {
+      if (filterMineOnly && myUserId && p.userId !== myUserId) return false;
+      if (filterHaveCurrency && normalize(p.haveCurrency) !== normalize(filterHaveCurrency)) return false;
+      if (filterNeedCurrency && normalize(p.needCurrency) !== normalize(filterNeedCurrency)) return false;
+      if (filterCity && !normalize(p.city).includes(normalize(filterCity))) return false;
+      if (filterPostStatus && !normalize(p.status).includes(normalize(filterPostStatus))) return false;
+      return true;
+    });
+  }, [posts, filterMineOnly, myUserId, filterHaveCurrency, filterNeedCurrency, filterCity, filterPostStatus]);
+
+  const filteredRequests = useMemo(() => {
+    return requests.filter((r) => {
+      const isIncoming = r.targetUserId === myUserId;
+      const isOutgoing = r.requesterId === myUserId;
+
+      if (myUserId && !isIncoming && !isOutgoing) return false;
+      if (isIncoming && !filterIncoming) return false;
+      if (isOutgoing && !filterOutgoing) return false;
+      if (filterRequestStatus && !normalize(r.status).includes(normalize(filterRequestStatus))) return false;
+      return true;
+    });
+  }, [requests, myUserId, filterIncoming, filterOutgoing, filterRequestStatus]);
+
   return (
     <ParallaxScrollView
       headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
@@ -514,6 +549,90 @@ export default function CurrencyScreen() {
           </ThemedText>
         </TouchableOpacity>
       </View>
+
+      <View style={styles.filterButtons}>
+        <ThemedButton
+          title={filtersVisible ? 'Hide filters' : 'Filters'}
+          variant="secondary"
+          onPress={() => setFiltersVisible((v) => !v)}
+          disabled={busy}
+          style={{ flex: 1, marginRight: 8 }}
+        />
+        <ThemedButton
+          title="Clear"
+          variant="secondary"
+          onPress={() => {
+            setFilterMineOnly(false);
+            setFilterHaveCurrency('');
+            setFilterNeedCurrency('');
+            setFilterCity('');
+            setFilterPostStatus('');
+            setFilterRequestStatus('');
+            setFilterIncoming(true);
+            setFilterOutgoing(true);
+          }}
+          disabled={busy}
+          style={{ width: 110 }}
+        />
+      </View>
+
+      {filtersVisible && (
+        <ThemedView style={[styles.form, { backgroundColor: formBackgroundColor }]}>
+          {viewMode === 'posts' ? (
+            <>
+              <View style={styles.filterRow}>
+                <ThemedButton
+                  title={filterMineOnly ? 'Mine only: ON' : 'Mine only: OFF'}
+                  variant="secondary"
+                  onPress={() => setFilterMineOnly((v) => !v)}
+                  disabled={busy}
+                  fullWidth
+                />
+              </View>
+              <CurrencySelector
+                placeholder="Have currency"
+                value={filterHaveCurrency}
+                onChange={setFilterHaveCurrency}
+              />
+              <CurrencySelector
+                placeholder="Need currency"
+                value={filterNeedCurrency}
+                onChange={setFilterNeedCurrency}
+              />
+              <CitySelector placeholder="City" value={filterCity} onChange={setFilterCity} />
+              <ThemedInput
+                placeholder="Status (e.g. active, cancelled)"
+                value={filterPostStatus}
+                onChangeText={setFilterPostStatus}
+              />
+            </>
+          ) : (
+            <>
+              <View style={styles.rowButtons}>
+                <ThemedButton
+                  title={filterIncoming ? 'Incoming: ON' : 'Incoming: OFF'}
+                  variant="secondary"
+                  onPress={() => setFilterIncoming((v) => !v)}
+                  disabled={busy}
+                  style={{ flex: 1 }}
+                />
+                <ThemedButton
+                  title={filterOutgoing ? 'Outgoing: ON' : 'Outgoing: OFF'}
+                  variant="secondary"
+                  onPress={() => setFilterOutgoing((v) => !v)}
+                  disabled={busy}
+                  style={{ flex: 1 }}
+                />
+              </View>
+              <ThemedInput
+                placeholder="Request status (e.g. pending, accepted, completed)"
+                value={filterRequestStatus}
+                onChangeText={setFilterRequestStatus}
+              />
+            </>
+          )}
+        </ThemedView>
+      )}
 
       {creating && (
         <ThemedView style={[styles.form, { backgroundColor: formBackgroundColor }]}>
@@ -570,17 +689,17 @@ export default function CurrencyScreen() {
           <ThemedText style={{ marginBottom: 10, fontSize: 12, color: '#666' }}>
             Browse posts from other users. Tap &quot;Request Match&quot; to initiate a trade.
           </ThemedText>
-          {posts.map((post) => (
+          {filteredPosts.map((post) => (
             <View key={post.id}>{renderPostItem({ item: post })}</View>
           ))}
-          {posts.length === 0 && loadedOnce && <ThemedText>No posts found.</ThemedText>}
+          {filteredPosts.length === 0 && loadedOnce && <ThemedText>No posts found.</ThemedText>}
         </View>
       ) : (
         <View style={styles.list}>
-          {requests.map((req) => (
+          {filteredRequests.map((req) => (
             <View key={req.id}>{renderRequestItem({ item: req })}</View>
           ))}
-          {requests.length === 0 && loadedOnce && <ThemedText>No requests found.</ThemedText>}
+          {filteredRequests.length === 0 && loadedOnce && <ThemedText>No requests found.</ThemedText>}
         </View>
       )}
 
@@ -626,6 +745,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginBottom: 16,
     borderBottomWidth: 1,
+  },
+  filterButtons: {
+    flexDirection: 'row',
+    marginBottom: 16,
+  },
+  filterRow: {
+    width: '100%',
   },
   tab: {
     paddingVertical: 10,

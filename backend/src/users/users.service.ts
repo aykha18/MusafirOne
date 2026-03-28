@@ -1,10 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { TrustService } from '../trust/trust.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly trustService: TrustService,
+  ) {}
 
   getById(id: string) {
     return this.prisma.user.findUniqueOrThrow({
@@ -23,7 +27,6 @@ export class UsersService {
         fullName: dto.fullName ?? undefined,
         city: dto.city ?? undefined,
         corridor: dto.corridor ?? undefined,
-        verificationLevel: dto.verificationLevel ?? undefined,
       },
     });
   }
@@ -57,9 +60,11 @@ export class UsersService {
   }
 
   async verifyUser(id: string, level: number) {
-    return this.prisma.user.update({
+    const updated = await this.prisma.user.update({
       where: { id },
       data: { verificationLevel: level },
     });
+    await this.trustService.recalculateForUser(id);
+    return updated;
   }
 }

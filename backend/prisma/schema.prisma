@@ -32,6 +32,8 @@ model User {
   ratingsTo          Rating[]               @relation("ToUser")
   disputesRaised     Dispute[]              @relation("DisputesRaisedBy")
   disputesResolved   Dispute[]              @relation("DisputesResolvedBy")
+  verificationDocuments VerificationDocument[]
+  reviewedVerificationDocuments VerificationDocument[] @relation("VerificationDocumentsReviewedBy")
   userDevices        UserDevice[]
   refreshTokens      RefreshToken[]
   stateChangeLogs    StateChangeLog[]       @relation("ChangedByUser")
@@ -41,6 +43,27 @@ model User {
   conversationsAsUser2 Conversation[]       @relation("User2Conversations")
   sentMessages         Message[]            @relation("SentMessages")
   pushTokens           PushToken[]
+}
+
+model VerificationDocument {
+  id                String                     @id @default(uuid())
+  userId            String
+  type              VerificationDocumentType
+  status            VerificationDocumentStatus
+  fileName          String
+  mimeType          String
+  storagePath       String
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+  reviewedAt        DateTime?
+  reviewedByAdminId String?
+  rejectionReason   String?
+
+  user              User                       @relation(fields: [userId], references: [id])
+  reviewedByAdmin   User?                      @relation("VerificationDocumentsReviewedBy", fields: [reviewedByAdminId], references: [id])
+
+  @@index([userId])
+  @@index([status])
 }
 
 model PushToken {
@@ -279,4 +302,19 @@ enum DisputeStatus {
   under_review
   resolved_valid
   resolved_invalid
+}
+
+enum VerificationDocumentType {
+  id_card
+  passport
+  driver_license
+  residence_permit
+  selfie
+}
+
+enum VerificationDocumentStatus {
+  submitted
+  under_review
+  approved
+  rejected
 }

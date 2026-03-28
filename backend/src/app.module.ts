@@ -9,6 +9,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { RatingsModule } from './ratings/ratings.module';
 import { TrustModule } from './trust/trust.module';
 import { UsersModule } from './users/users.module';
+import { VerificationModule } from './verification/verification.module';
 
 import { ChatModule } from './chat/chat.module';
 import { NotificationsModule } from './notifications/notifications.module';
@@ -29,6 +30,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
     NotificationsModule,
     LogsModule,
     DashboardModule,
+    VerificationModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -1,0 +1,10 @@
+[
+  { "id": "documents", "label": "Documents" },
+  { "id": "electronics", "label": "Electronics" },
+  { "id": "clothing", "label": "Clothing" },
+  { "id": "small_gift", "label": "Small gift" },
+  { "id": "medicine", "label": "Medicine" },
+  { "id": "food_non_perishable", "label": "Food (non-perishable)" },
+  { "id": "cosmetics", "label": "Cosmetics" },
+  { "id": "other", "label": "Other" }
+]

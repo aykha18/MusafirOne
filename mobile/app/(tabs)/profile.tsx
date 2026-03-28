@@ -1,11 +1,12 @@
 import { StyleSheet, View, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useState, useEffect } from 'react';
+import * as DocumentPicker from 'expo-document-picker';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { ThemedButton } from '@/components/themed-button';
-import { apiClient } from '@/api/client';
+import { apiClient, type VerificationDocument } from '@/api/client';
 import { disconnectSocket } from '@/api/socket';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -26,9 +27,13 @@ export default function ProfileScreen() {
   const colorScheme = useColorScheme();
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [documents, setDocuments] = useState<VerificationDocument[]>([]);
+  const [loadingDocuments, setLoadingDocuments] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
-    loadProfile();
+    void loadProfile();
+    void loadDocuments();
   }, []);
 
   const loadProfile = async () => {
@@ -40,6 +45,52 @@ export default function ProfileScreen() {
       Alert.alert('Error', 'Failed to load profile');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadDocuments = async () => {
+    setLoadingDocuments(true);
+    try {
+      const docs = await apiClient.listMyVerificationDocuments();
+      setDocuments(docs);
+    } catch (e) {
+      setDocuments([]);
+    } finally {
+      setLoadingDocuments(false);
+    }
+  };
+
+  const uploadDocument = async (
+    type: 'id_card' | 'passport' | 'driver_license' | 'residence_permit' | 'selfie',
+  ) => {
+    try {
+      setUploading(true);
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['image/*', 'application/pdf'],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
+      const asset = result.assets[0];
+      if (!asset.uri || !asset.name || !asset.mimeType) {
+        Alert.alert('Error', 'Selected file is missing metadata');
+        return;
+      }
+      await apiClient.uploadVerificationDocument({
+        type,
+        uri: asset.uri,
+        name: asset.name,
+        mimeType: asset.mimeType,
+      });
+      Alert.alert('Submitted', 'Document submitted for review');
+      await loadDocuments();
+      await loadProfile();
+    } catch (e) {
+      Alert.alert('Error', e instanceof Error ? e.message : String(e));
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -64,7 +115,7 @@ export default function ProfileScreen() {
               
               // Navigate to the index tab specifically
               // Use navigate instead of replace to ensure tab switching works
-              router.navigate('/(tabs)/index');
+              router.navigate('/');
             } catch (e) {
               // console.error('Logout error:', e);
               Alert.alert('Error', 'Failed to logout');
@@ -116,6 +167,64 @@ export default function ProfileScreen() {
               <ThemedText style={styles.subtext}>Trust Score: {user.trustScore}</ThemedText>
             </View>
           </View>
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <ThemedText type="subtitle" style={styles.sectionTitle}>
+          Document Verification (Level 2)
+        </ThemedText>
+        <View style={[styles.card, { borderColor: Colors[colorScheme ?? 'light'].icon }]}>
+          <View style={styles.docsButtons}>
+            <ThemedButton
+              title={uploading ? 'Uploading…' : 'Upload ID'}
+              onPress={() => uploadDocument('id_card')}
+              disabled={uploading}
+              style={{ flex: 1 }}
+            />
+            <ThemedButton
+              title={uploading ? 'Uploading…' : 'Upload Selfie'}
+              onPress={() => uploadDocument('selfie')}
+              disabled={uploading}
+              variant="secondary"
+              style={{ flex: 1 }}
+            />
+          </View>
+
+          {loadingDocuments ? (
+            <View style={{ marginTop: 12 }}>
+              <ActivityIndicator />
+            </View>
+          ) : documents.length === 0 ? (
+            <ThemedText style={[styles.subtext, { marginTop: 12 }]}>
+              No documents submitted yet.
+            </ThemedText>
+          ) : (
+            <View style={{ marginTop: 12, gap: 8 }}>
+              {documents.slice(0, 3).map((doc) => (
+                <View key={doc.id} style={styles.docRow}>
+                  <View style={{ flex: 1 }}>
+                    <ThemedText type="defaultSemiBold">
+                      {doc.type} • {doc.status}
+                    </ThemedText>
+                    <ThemedText style={styles.subtext} numberOfLines={1}>
+                      {doc.fileName}
+                    </ThemedText>
+                    {doc.status === 'rejected' && doc.rejectionReason ? (
+                      <ThemedText style={[styles.subtext, { marginTop: 4 }]}>
+                        {doc.rejectionReason}
+                      </ThemedText>
+                    ) : null}
+                  </View>
+                </View>
+              ))}
+              <ThemedButton
+                title="Refresh Documents"
+                variant="secondary"
+                onPress={loadDocuments}
+              />
+            </View>
+          )}
         </View>
       </View>
 
@@ -204,6 +313,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     opacity: 0.6,
     marginTop: 2,
+  },
+  docsButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  docRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   detailRow: {
     flexDirection: 'row',

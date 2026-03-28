@@ -107,7 +107,7 @@ function GoogleSignInEnabled({
   const redirectUri = isWeb
     ? AuthSession.makeRedirectUri({ path: 'auth/callback' })
     : useProxy
-      ? AuthSession.makeRedirectUri({ useProxy: true })
+      ? AuthSession.makeRedirectUri()
       : AuthSession.makeRedirectUri({
           native: `${googleNativeScheme ?? 'mobile'}:/oauthredirect`,
         });
@@ -116,7 +116,7 @@ function GoogleSignInEnabled({
     androidClientId,
     iosClientId,
     webClientId,
-    expoClientId: isWeb || !useProxy ? undefined : expoClientId,
+    clientId: isWeb || !useProxy ? undefined : expoClientId,
     redirectUri,
     scopes: ['openid', 'profile', 'email'],
     selectAccount: true,
@@ -178,7 +178,7 @@ function GoogleSignInEnabled({
             } catch (e) {
               // console.error('Failed to save oauth state', e);
             }
-            promptAsync({ useProxy });
+            promptAsync();
           }}
           disabled={busy}
           fullWidth
@@ -237,7 +237,7 @@ export default function HomeScreen() {
     try {
       await apiClient.googleLogin(token, 'demo-device');
       await handleLoadProfile(); // Refresh profile to get user info
-      router.replace('/(tabs)/currency');
+      router.replace('/currency');
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -271,7 +271,7 @@ export default function HomeScreen() {
         deviceFingerprint: 'demo-device',
       });
       setLoggedInPhone(fullNumber);
-      router.push('/(tabs)/currency');
+      router.push('/currency');
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -379,14 +379,14 @@ export default function HomeScreen() {
             <View style={styles.row}>
               <ThemedButton
                 title="Currency activity"
-                onPress={() => router.push('/(tabs)/currency')}
+                onPress={() => router.push('/currency')}
                 fullWidth
               />
             </View>
             <View style={styles.row}>
               <ThemedButton
                 title="Parcel activity"
-                onPress={() => router.push('/(tabs)/parcel')}
+                onPress={() => router.push('/parcel')}
                 fullWidth
               />
             </View>
@@ -401,11 +401,6 @@ export default function HomeScreen() {
               </View>
             )}
           </>
-        )}
-        {apiClient.getAccessToken() && (
-          <ThemedText numberOfLines={1}>
-            Access token: {apiClient.getAccessToken()?.slice(0, 16)}…
-          </ThemedText>
         )}
         {me && (
           <ThemedText>

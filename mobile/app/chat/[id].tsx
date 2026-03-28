@@ -9,6 +9,10 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 
+type SocketMessage = Message & {
+  conversationId?: string;
+};
+
 export default function ChatScreen() {
   const { id } = useLocalSearchParams();
   const conversationId = Array.isArray(id) ? id[0] : id;
@@ -43,8 +47,8 @@ export default function ChatScreen() {
         // Connect socket
         const socket = await connectSocket();
         if (socket) {
-          socket.on('newMessage', (msg: Message) => {
-            if (msg.conversationId === conversationId) {
+          socket.on('newMessage', (msg: SocketMessage) => {
+            if (!msg.conversationId || msg.conversationId === conversationId) {
               setMessages((prev) => [msg, ...prev]);
             }
           });

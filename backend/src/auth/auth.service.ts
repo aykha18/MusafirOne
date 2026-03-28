@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { randomBytes, createHash } from 'node:crypto';
 import { OAuth2Client } from 'google-auth-library';
 import { PrismaService } from '../prisma/prisma.service';
+import { TrustService } from '../trust/trust.service';
 import { RequestOtpDto } from './dto/request-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
@@ -27,6 +28,7 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
+    private readonly trustService: TrustService,
   ) {
     this.googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
   }
@@ -179,7 +181,7 @@ export class AuthService {
         phoneNumber: dto.phoneNumber,
       },
     });
-    const user =
+    let user =
       existingUser ??
       (await this.prisma.user.create({
         data: {
@@ -187,9 +189,15 @@ export class AuthService {
           fullName: '',
           city: '',
           corridor: '',
-          verificationLevel: 0,
+          verificationLevel: 1,
         },
       }));
+    if (user.verificationLevel < 1) {
+      user = await this.prisma.user.update({
+        where: { id: user.id },
+        data: { verificationLevel: 1 },
+      });
+    }
     if (dto.deviceFingerprint.length > 0) {
       const existingDevice = await this.prisma.userDevice.findFirst({
         where: {
@@ -215,6 +223,7 @@ export class AuthService {
         });
       }
     }
+    await this.trustService.recalculateForUser(user.id);
     return this.issueTokens(user.id, user.phoneNumber);
   }
 

@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, type PressableProps } from 'react-native';
+import { Pressable, StyleSheet, type PressableProps, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 import { ThemedText } from './themed-text';
 import { useThemeColor } from '@/hooks/use-theme-color';
 
@@ -6,6 +6,7 @@ export type ThemedButtonProps = PressableProps & {
   title: string;
   variant?: 'primary' | 'secondary' | 'danger';
   fullWidth?: boolean;
+  textStyle?: StyleProp<TextStyle>;
 };
 
 export function ThemedButton({
@@ -13,6 +14,7 @@ export function ThemedButton({
   variant = 'primary',
   disabled,
   style,
+  textStyle,
   fullWidth = false,
   ...rest
 }: ThemedButtonProps) {
@@ -37,16 +39,20 @@ export function ThemedButton({
 
   return (
     <Pressable
-      style={({ pressed }) => [
-        styles.base,
-        {
-          width: fullWidth ? '100%' : undefined,
-          opacity: disabled ? 0.6 : pressed ? 0.8 : 1,
-          backgroundColor,
-          borderColor,
-        },
-        style,
-      ]}
+      style={(state) => {
+        const resolvedStyle: StyleProp<ViewStyle> =
+          typeof style === 'function' ? style(state) : style;
+        return [
+          styles.base,
+          {
+            width: fullWidth ? '100%' : undefined,
+            opacity: disabled ? 0.6 : state.pressed ? 0.8 : 1,
+            backgroundColor,
+            borderColor,
+          },
+          resolvedStyle,
+        ];
+      }}
       disabled={disabled}
       {...rest}
     >
@@ -57,6 +63,7 @@ export function ThemedButton({
           {
             color: variant === 'secondary' ? iconColor : textColor,
           },
+          textStyle,
         ]}
       >
         {title}

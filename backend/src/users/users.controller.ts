@@ -31,6 +31,11 @@ export class UsersController {
     return this.usersService.getById(req.user.id);
   }
 
+  @Get('me/stats')
+  meStats(@Req() req: AuthenticatedRequest) {
+    return this.usersService.getStats(req.user.id);
+  }
+
   @Patch('me')
   updateProfile(
     @Req() req: AuthenticatedRequest,

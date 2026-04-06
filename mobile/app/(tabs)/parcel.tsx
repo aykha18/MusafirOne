@@ -1449,7 +1449,7 @@ export default function ParcelScreen() {
           ListEmptyComponent={<ThemedText style={styles.emptyText}>No trips found.</ThemedText>}
         />
       ) : (
-        <View style={{ marginTop: UI.spacing.md, marginHorizontal: UI.spacing.lg }}>
+        <View style={{ marginTop: UI.spacing.md }}>
           <ThemedText type="defaultSemiBold" style={{ marginBottom: UI.spacing.sm }}>
             My Active Requests
           </ThemedText>
@@ -1638,7 +1638,6 @@ const styles = StyleSheet.create({
     padding: UI.spacing.lg,
     gap: UI.spacing.md,
     borderRadius: UI.radius.lg,
-    marginHorizontal: UI.spacing.lg,
     marginTop: UI.spacing.md,
     marginBottom: UI.spacing.md,
   },
@@ -1702,11 +1701,11 @@ const styles = StyleSheet.create({
   categoryGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: UI.spacing.md,
+    gap: 12,
     marginTop: UI.spacing.md,
   },
   categoryTile: {
-    width: '30.5%',
+    width: '29%',
     borderWidth: 1,
     borderRadius: UI.radius.md,
     paddingVertical: 14,
@@ -1751,8 +1750,6 @@ const styles = StyleSheet.create({
   },
   card: {
     padding: 16,
-    marginHorizontal: 16,
-    marginVertical: 8,
     borderRadius: 8,
     backgroundColor: '#fff',
     borderWidth: 1,

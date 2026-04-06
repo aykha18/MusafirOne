@@ -225,14 +225,6 @@ export default function CurrencyScreen() {
     }
   }, [viewMode, filterHaveCurrency, filterNeedCurrency, haveCurrency, needCurrency]);
 
-  const computedReceiveAmount = useMemo(() => {
-    const amountNumber = Number(amount);
-    const rateNumber = Number(preferredRate);
-    if (Number.isNaN(amountNumber) || Number.isNaN(rateNumber)) return null;
-    if (amountNumber <= 0 || rateNumber <= 0) return null;
-    return amountNumber * rateNumber;
-  }, [amount, preferredRate]);
-
   const handleAcceptRequest = async (requestId: string) => {
     try {
       await apiClient.acceptMatchRequest(requestId);
@@ -625,20 +617,19 @@ export default function CurrencyScreen() {
         </View>
 
         <AppCard style={styles.exchangeCard}>
-          <View style={styles.exchangeBlock}>
-            <ThemedText style={styles.exchangeLabel}>YOU SEND</ThemedText>
-            <CurrencySelector
-              placeholder="Select"
-              value={filterHaveCurrency}
-              onChange={(v) => {
-                setFilterHaveCurrency(v);
-                if (viewMode === 'requests') setHaveCurrency(v);
-              }}
-            />
-          </View>
+          <View style={styles.exchangeTopRow}>
+            <View style={{ flex: 1 }}>
+              <ThemedText style={styles.exchangeLabel}>YOU SEND</ThemedText>
+              <CurrencySelector
+                placeholder="Select"
+                value={filterHaveCurrency}
+                onChange={(v) => {
+                  setFilterHaveCurrency(v);
+                  if (viewMode === 'requests') setHaveCurrency(v);
+                }}
+              />
+            </View>
 
-          <View style={styles.swapRow}>
-            <View style={[styles.swapLine, { backgroundColor: Colors[colorScheme ?? 'light'].border }]} />
             <Pressable
               onPress={() => {
                 const nextHave = filterNeedCurrency;
@@ -651,16 +642,14 @@ export default function CurrencyScreen() {
                 }
               }}
               style={({ pressed }) => [
-                styles.swapButton,
+                styles.swapButtonSmall,
                 { backgroundColor: Colors[colorScheme ?? 'light'].tint, opacity: pressed ? 0.8 : 1 },
               ]}
+              hitSlop={8}
             >
-              <IconSymbol name="arrow.left.arrow.right" size={18} color="#fff" />
+              <IconSymbol name="arrow.left.arrow.right" size={16} color="#fff" />
             </Pressable>
-            <View style={[styles.swapLine, { backgroundColor: Colors[colorScheme ?? 'light'].border }]} />
-          </View>
 
-          <View style={styles.exchangeReceiveRow}>
             <View style={{ flex: 1 }}>
               <ThemedText style={styles.exchangeLabel}>THEY RECEIVE</ThemedText>
               <CurrencySelector
@@ -672,36 +661,18 @@ export default function CurrencyScreen() {
                 }}
               />
             </View>
-            <View style={styles.receiveAmountWrap}>
-              <ThemedText style={styles.receiveAmount}>
-                {computedReceiveAmount
-                  ? computedReceiveAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })
-                  : '—'}
-              </ThemedText>
-            </View>
           </View>
 
-          <View
-            style={[
-              styles.marketRateRow,
-              {
-                backgroundColor:
-                  (colorScheme ?? 'light') === 'dark'
-                    ? 'rgba(255,255,255,0.06)'
-                    : 'rgba(0,0,0,0.04)',
-              },
-            ]}
-          >
-            <View style={styles.marketRateLeft}>
-              <ThemedText style={styles.marketRateIcon}>↗</ThemedText>
-              <ThemedText style={styles.marketRateLabel}>Market Rate</ThemedText>
-            </View>
-            <ThemedText style={styles.marketRateValue}>
+          <View style={styles.marketRateInlineRow}>
+            <ThemedText style={styles.marketRateInlineLabel}>Live Market Rate</ThemedText>
+            <ThemedText style={styles.marketRateInlineValue}>
               {filterHaveCurrency && filterNeedCurrency
                 ? `1 ${filterHaveCurrency} ≈ ${preferredRate || '—'} ${filterNeedCurrency}`
                 : '—'}
             </ThemedText>
           </View>
+
+          
         </AppCard>
 
         <AppCard variant="soft" style={styles.trendCard}>
@@ -994,22 +965,20 @@ const styles = StyleSheet.create({
   exchangeBlock: {
     gap: 8,
   },
-  exchangeReceiveRow: {
+  exchangeTopRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: UI.spacing.md,
+    justifyContent: 'space-between',
+    gap: 12,
   },
-  receiveAmountWrap: {
-    minWidth: 110,
-    alignItems: 'flex-end',
-    justifyContent: 'flex-end',
-    paddingBottom: 10,
-  },
-  receiveAmount: {
-    fontSize: 24,
-    lineHeight: 28,
-    fontWeight: '800',
-    color: '#1b8f3a',
+  swapButtonSmall: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'flex-end',
+    marginBottom: 6,
   },
   exchangeLabel: {
     fontSize: 11,
@@ -1017,52 +986,19 @@ const styles = StyleSheet.create({
     opacity: 0.65,
     letterSpacing: 0.6,
   },
-  swapRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: UI.spacing.sm,
-    marginTop: 2,
-    marginBottom: 2,
-  },
-  swapLine: {
-    height: 1,
-    flex: 1,
-  },
-  swapButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  marketRateRow: {
-    marginTop: UI.spacing.sm,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: 'rgba(0,0,0,0.04)',
+  marketRateInlineRow: {
+    marginTop: UI.spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 10,
   },
-  marketRateLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  marketRateIcon: {
+  marketRateInlineLabel: {
     fontSize: 12,
     lineHeight: 14,
-    opacity: 0.8,
+    opacity: 0.7,
   },
-  marketRateLabel: {
-    fontSize: 12,
-    lineHeight: 14,
-    opacity: 0.8,
-  },
-  marketRateValue: {
+  marketRateInlineValue: {
     fontSize: 12,
     lineHeight: 14,
     opacity: 0.9,

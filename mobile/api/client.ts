@@ -9,8 +9,18 @@ export type User = {
   city?: string;
   corridor?: string;
   verificationLevel?: number;
+  trustScore?: number;
+  createdAt?: string;
   isAdmin?: boolean;
   isSuspended?: boolean;
+};
+
+export type MyStats = {
+  exchanges: number;
+  parcels: number;
+  ratingAvg: number | null;
+  ratingCount: number;
+  community: number;
 };
 
 export type AuthTokens = {
@@ -286,6 +296,10 @@ export class ApiClient {
 
   async getMe() {
     return this.get<User>('/users/me');
+  }
+
+  async getMyStats() {
+    return this.get('/users/me/stats');
   }
 
   async listUsers() {

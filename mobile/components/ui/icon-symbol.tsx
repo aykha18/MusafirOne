@@ -35,6 +35,14 @@ const MAPPING = {
   'line.3.horizontal.decrease.circle': 'tune',
   'info.circle': 'info-outline',
   'square.and.pencil': 'edit',
+  'camera.fill': 'photo-camera',
+  'star.fill': 'star',
+  'person.2.fill': 'groups',
+  globe: 'language',
+  'lock.fill': 'lock',
+  'questionmark.circle': 'help-outline',
+  gift: 'card-giftcard',
+  'rectangle.portrait.and.arrow.right': 'logout',
 } as IconMapping;
 
 /**

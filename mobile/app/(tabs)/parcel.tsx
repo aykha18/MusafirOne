@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FlatList, StyleSheet, View, Alert, Modal, TouchableOpacity } from 'react-native';
+import { FlatList, StyleSheet, View, Alert, Modal, TouchableOpacity, Pressable } from 'react-native';
 import { router } from 'expo-router';
 import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedButton } from '@/components/themed-button';
@@ -9,12 +9,15 @@ import { ThemedView } from '@/components/themed-view';
 import { apiClient } from '@/api/client';
 import { CountrySelector, Country } from '@/components/country-selector';
 import { DateTimePickerInput } from '@/components/date-time-picker-input';
-import { RatingModal, RatingData } from '@/components/rating-modal';
+import { RatingModal } from '@/components/rating-modal';
 import { DisputeModal } from '@/components/dispute-modal';
-import { Colors } from '@/constants/theme';
+import { Colors, UI } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import parcelItemTypes from '@/data/parcel-item-types.json';
 import citiesData from '@/data/cities.json';
+import { AppCard } from '@/components/ui/app-card';
+import { SegmentedControl } from '@/components/ui/segmented-control';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 
 type ParcelTrip = {
   id: string;
@@ -54,11 +57,6 @@ export default function ParcelScreen() {
   
   // Dynamic styles
   const cardBackgroundColor = isDark ? '#1E1E1E' : '#fff';
-  const formBackgroundColor = isDark ? '#1E1E1E' : '#f5f5f5';
-  const tabContainerColor = isDark ? '#2C2C2E' : '#eee';
-  const activeTabColor = isDark ? '#48484A' : '#fff';
-  const tabTextColor = isDark ? '#9BA1A6' : '#666';
-  const activeTabTextColor = isDark ? '#fff' : '#000';
   const badgeBackgroundColor = isDark ? '#3A3A3C' : '#e0e0e0';
   const borderColor = isDark ? '#333' : '#e0e0e0';
 
@@ -73,7 +71,6 @@ export default function ParcelScreen() {
   
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [loadedOnce, setLoadedOnce] = useState(false);
   
   const [showTripForm, setShowTripForm] = useState(false);
   const [showRequestForm, setShowRequestForm] = useState(false);
@@ -189,8 +186,6 @@ export default function ParcelScreen() {
 
       setTrips(allTrips);
       setRequests(allRequests);
-
-      setLoadedOnce(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -519,7 +514,7 @@ export default function ParcelScreen() {
         parcelRequestId,
       });
       router.push(`/chat/${conversation.id}`);
-    } catch (e) {
+    } catch {
       Alert.alert('Error', 'Could not start conversation');
       // console.error(e);
     } finally {
@@ -1030,24 +1025,70 @@ export default function ParcelScreen() {
 
   return (
     <ParallaxScrollView
-      headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
+      headerBackgroundColor={{ light: '#F5F7FB', dark: '#15181B' }}
       headerImage={null}>
-      <ThemedView style={styles.header}>
-        <View>
-          <ThemedText type="title">Parcel Delivery</ThemedText>
-          <ThemedText style={{ fontSize: 14, color: '#666', marginBottom: 8 }}>
-            Send packages securely or earn money by traveling.
-          </ThemedText>
-          <ThemedText style={{ fontSize: 12, color: '#666', marginBottom: 2 }}>
-            • Use &quot;New Trip&quot; if you are traveling and can carry a parcel.
-          </ThemedText>
-          <ThemedText style={{ fontSize: 12, color: '#666', marginBottom: 2 }}>
-            • Use &quot;New Request&quot; if you need to send a parcel.
-          </ThemedText>
-          <ThemedText style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
-            Browse the lists below to find a match for your trip or parcel.
-          </ThemedText>
+      <View style={styles.header}>
+        <View style={styles.headerTopRow}>
+          <View style={{ flex: 1 }}>
+            <ThemedText type="title" style={styles.screenTitle}>Send Parcel</ThemedText>
+            <ThemedText style={styles.screenSubtitle}>Connect with trusted travelers</ThemedText>
+          </View>
+          <Pressable
+            onPress={() => Alert.alert('Filter', 'Filtering UI will be added here.')}
+            style={({ pressed }) => [
+              styles.iconButton,
+              {
+                backgroundColor: Colors[colorScheme ?? 'light'].background,
+                borderColor: Colors[colorScheme ?? 'light'].border,
+                opacity: pressed ? 0.7 : 1,
+              },
+            ]}
+            hitSlop={8}
+          >
+            <IconSymbol name="line.3.horizontal.decrease.circle" size={18} color={Colors[colorScheme ?? 'light'].icon} />
+          </Pressable>
         </View>
+
+        <AppCard style={[styles.summaryCard, { backgroundColor: '#F08A1A', borderColor: 'transparent' }]}>
+          <View style={styles.summaryRow}>
+            <View style={{ flex: 1 }}>
+              <ThemedText style={styles.summaryLabel} lightColor="#fff" darkColor="#fff">My Parcels</ThemedText>
+              <ThemedText style={styles.summaryValue} lightColor="#fff" darkColor="#fff">
+                {myRequests.filter((r) => r.status === 'active' || r.status === 'pending' || r.status === 'accepted').length} Active Requests
+              </ThemedText>
+            </View>
+            <View style={styles.summaryChips}>
+              {myRequests
+                .filter((r) => r.status === 'active' || r.status === 'pending' || r.status === 'accepted')
+                .slice(0, 2)
+                .map((r) => (
+                  <View key={r.id} style={styles.summaryChip}>
+                    <ThemedText style={styles.summaryChipText} lightColor="#fff" darkColor="#fff" numberOfLines={1}>
+                      {r.itemType} to {r.toCountry}
+                    </ThemedText>
+                  </View>
+                ))}
+            </View>
+          </View>
+        </AppCard>
+
+        <View style={{ marginTop: UI.spacing.md }}>
+          <SegmentedControl
+            value={viewMode}
+            options={[
+              { value: 'trips', label: 'Find Travelers' },
+              { value: 'requests', label: 'Find Packages' },
+            ]}
+            onChange={(v) => {
+              setViewMode(v);
+              if (v === 'trips') {
+                setShowRequestForm(false);
+                setShowTripForm(false);
+              }
+            }}
+          />
+        </View>
+
         <View style={styles.headerButtons}>
           <ThemedButton
             title={showTripForm ? 'Close trip form' : 'New trip'}
@@ -1061,9 +1102,11 @@ export default function ParcelScreen() {
               setShowTripForm(true);
             }}
             disabled={busy || creatingBusy}
+            variant="secondary"
+            style={{ flex: 1 }}
           />
           <ThemedButton
-            title={showRequestForm ? 'Close request form' : 'New request'}
+            title={showRequestForm ? 'Close request form' : 'Post request'}
             onPress={() => {
               if (showRequestForm) {
                 resetRequestForm();
@@ -1074,10 +1117,10 @@ export default function ParcelScreen() {
               setShowRequestForm(true);
             }}
             disabled={busy || creatingBusy}
+            style={{ flex: 1 }}
           />
-          <ThemedButton title="Refresh" onPress={load} disabled={busy} variant="secondary" />
         </View>
-      </ThemedView>
+      </View>
 
       {error && <ThemedText style={styles.errorText}>{error}</ThemedText>}
       {createError && <ThemedText style={styles.errorText}>{createError}</ThemedText>}
@@ -1172,19 +1215,6 @@ export default function ParcelScreen() {
           </View>
         </View>
       )}
-
-      <View style={[styles.tabsContainer, { backgroundColor: tabContainerColor }]}>
-        <TouchableOpacity 
-          style={[styles.tab, viewMode === 'requests' && [styles.activeTab, { backgroundColor: activeTabColor }]]} 
-          onPress={() => setViewMode('requests')}>
-          <ThemedText style={[styles.tabText, { color: tabTextColor }, viewMode === 'requests' && [styles.activeTabText, { color: activeTabTextColor }]]}>Find Packages</ThemedText>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={[styles.tab, viewMode === 'trips' && [styles.activeTab, { backgroundColor: activeTabColor }]]} 
-          onPress={() => setViewMode('trips')}>
-          <ThemedText style={[styles.tabText, { color: tabTextColor }, viewMode === 'trips' && [styles.activeTabText, { color: activeTabTextColor }]]}>Find Travelers</ThemedText>
-        </TouchableOpacity>
-      </View>
 
       <View style={styles.filterButtons}>
         <ThemedButton
@@ -1369,8 +1399,67 @@ export default function ParcelScreen() {
 
 const styles = StyleSheet.create({
   header: {
-    padding: 16,
-    gap: 16,
+    paddingHorizontal: UI.spacing.lg,
+    paddingTop: UI.spacing.lg,
+    paddingBottom: UI.spacing.md,
+    gap: UI.spacing.md,
+  },
+  headerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: UI.spacing.md,
+  },
+  screenTitle: {
+    fontSize: 28,
+    lineHeight: 32,
+  },
+  screenSubtitle: {
+    fontSize: 13,
+    lineHeight: 16,
+    opacity: 0.75,
+    marginTop: 6,
+  },
+  iconButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  summaryCard: {
+    padding: UI.spacing.lg,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: UI.spacing.md,
+  },
+  summaryLabel: {
+    fontSize: 12,
+    lineHeight: 14,
+    opacity: 0.95,
+  },
+  summaryValue: {
+    marginTop: 6,
+    fontSize: 18,
+    lineHeight: 22,
+    fontWeight: '800',
+  },
+  summaryChips: {
+    gap: 8,
+    maxWidth: 190,
+  },
+  summaryChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+  },
+  summaryChipText: {
+    fontSize: 12,
+    lineHeight: 14,
   },
   headerButtons: {
     flexDirection: 'row',

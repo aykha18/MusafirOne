@@ -74,14 +74,12 @@ export function ThemedButton({
 
 const styles = StyleSheet.create({
   base: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  label: {
-    textTransform: 'uppercase',
-  },
+  label: {},
 });

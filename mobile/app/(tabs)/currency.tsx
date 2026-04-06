@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { StyleSheet, View, Alert, TouchableOpacity } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { StyleSheet, View, Alert, Pressable } from 'react-native';
 import { router } from 'expo-router';
 import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedButton } from '@/components/themed-button';
@@ -10,6 +10,10 @@ import { CitySelector } from '@/components/city-selector';
 import { CurrencySelector } from '@/components/currency-selector';
 import { apiClient } from '@/api/client';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Colors, UI } from '@/constants/theme';
+import { AppCard } from '@/components/ui/app-card';
+import { SegmentedControl } from '@/components/ui/segmented-control';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 
 import { RatingModal, RatingData } from '@/components/rating-modal';
 import { DisputeModal } from '@/components/dispute-modal';
@@ -39,7 +43,6 @@ export default function CurrencyScreen() {
   const isDark = colorScheme === 'dark';
   const formBackgroundColor = isDark ? '#1E1E1E' : '#f9f9f9';
   const badgeBackgroundColor = isDark ? '#3A3A3C' : '#ddd';
-  const borderColor = isDark ? '#333' : '#ccc';
   const [viewMode, setViewMode] = useState<'posts' | 'requests'>('posts');
   const [posts, setPosts] = useState<CurrencyPost[]>([]);
   const [requests, setRequests] = useState<MatchRequest[]>([]);
@@ -79,7 +82,7 @@ export default function CurrencyScreen() {
   const [selectedMatchForDispute, setSelectedMatchForDispute] = useState<MatchRequest | null>(null);
   const [disputeBusy, setDisputeBusy] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setBusy(true);
     setError(null);
     try {
@@ -106,7 +109,7 @@ export default function CurrencyScreen() {
     } finally {
       setBusy(false);
     }
-  };
+  }, [myUserId]);
 
   useEffect(() => {
     if (!apiClient.getAccessToken()) {
@@ -114,7 +117,7 @@ export default function CurrencyScreen() {
       return;
     }
     void load();
-  }, []);
+  }, [load]);
 
   const handleCreatePost = async () => {
     setCreatingBusy(true);
@@ -306,7 +309,7 @@ export default function CurrencyScreen() {
         matchRequestId,
       });
       router.push(`/chat/${conversation.id}`);
-    } catch (e) {
+    } catch {
       Alert.alert('Error', 'Could not start conversation');
       // console.error(e);
     } finally {
@@ -347,15 +350,32 @@ export default function CurrencyScreen() {
     );
 
     return (
-      <ThemedView style={styles.card}>
-        <View style={styles.cardHeader}>
-          <ThemedText type="defaultSemiBold">{item.haveCurrency} ➡️ {item.needCurrency}</ThemedText>
-          {isMyPost && <ThemedText style={[styles.badge, { backgroundColor: badgeBackgroundColor }]}>My Post</ThemedText>}
+      <AppCard style={styles.postCard}>
+        <View style={styles.postHeaderRow}>
+          <View style={[styles.userCircle, { backgroundColor: 'rgba(77, 163, 255, 0.18)' }]}>
+            <ThemedText type="defaultSemiBold" style={{ color: Colors[colorScheme ?? 'light'].tint }}>
+              {isMyPost ? 'Me'.charAt(0) : 'A'}
+            </ThemedText>
+          </View>
+          <View style={{ flex: 1 }}>
+            <ThemedText type="defaultSemiBold" numberOfLines={1}>
+              {isMyPost ? 'My listing' : 'Verified user'}
+            </ThemedText>
+            <ThemedText style={styles.postMeta} numberOfLines={1}>
+              {item.city}
+            </ThemedText>
+          </View>
+          <View style={[styles.ratePill, { backgroundColor: Colors[colorScheme ?? 'light'].surface }]}>
+            <ThemedText style={styles.ratePillText}>@ {item.preferredRate}</ThemedText>
+          </View>
         </View>
-        <ThemedText>Amount: {item.amount}</ThemedText>
-        <ThemedText>Rate: {item.preferredRate}</ThemedText>
-        <ThemedText>City: {item.city}</ThemedText>
-        
+
+        <View style={styles.postMainRow}>
+          <ThemedText type="defaultSemiBold" style={styles.postAmountText}>
+            {item.haveCurrency} {item.amount.toLocaleString()} → {item.needCurrency}
+          </ThemedText>
+        </View>
+
         <View style={styles.cardActions}>
           {isMyPost ? (
             <View style={styles.rowButtons}>
@@ -366,7 +386,7 @@ export default function CurrencyScreen() {
                 style={{ flex: 1, marginRight: 8 }}
               />
               <ThemedButton 
-                title="Cancel Post" 
+                title="Cancel" 
                 variant="secondary" 
                 onPress={() => handleCancelPost(item.id)} 
                 style={{ flex: 1 }}
@@ -375,11 +395,10 @@ export default function CurrencyScreen() {
           ) : (
             <View style={styles.rowButtons}>
               {hasPendingRequest ? (
-                <ThemedButton title="Request Sent" variant="secondary" disabled onPress={() => {}} style={{ flex: 1 }} />
+                <ThemedButton title="Requested" variant="secondary" disabled onPress={() => {}} style={{ flex: 1, marginRight: 8 }} />
               ) : (
-                <ThemedButton title="Request Match" onPress={() => handleRequestMatch(item)} style={{ flex: 1 }} />
+                <ThemedButton title="Connect" onPress={() => handleRequestMatch(item)} style={{ flex: 1, marginRight: 8 }} />
               )}
-              <View style={{ width: 8 }} />
               <ThemedButton 
                 title="Chat" 
                 variant="secondary" 
@@ -389,7 +408,7 @@ export default function CurrencyScreen() {
             </View>
           )}
         </View>
-      </ThemedView>
+      </AppCard>
     );
   };
 
@@ -568,64 +587,122 @@ export default function CurrencyScreen() {
 
   return (
     <ParallaxScrollView
-      headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
+      headerBackgroundColor={{ light: '#F5F7FB', dark: '#15181B' }}
       headerImage={null}>
-      <ThemedView style={styles.header}>
-        <View style={styles.headerTextContainer}>
-          <ThemedText type="title">Currency Exchange</ThemedText>
-          <ThemedText style={{ fontSize: 14, color: '#666', marginBottom: 8 }}>
-            Connect with others to exchange currency securely.
-          </ThemedText>
-          <ThemedText style={{ fontSize: 12, color: '#666', marginBottom: 2 }}>
-            • Use &quot;Create Post&quot; to list currency you have or need.
-          </ThemedText>
-          <ThemedText style={{ fontSize: 12, color: '#666', marginBottom: 2 }}>
-            • Browse &quot;Available Posts&quot; to find matches.
-          </ThemedText>
-          <ThemedText style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
-            Check &quot;My Requests&quot; for status updates on your trades.
-          </ThemedText>
+      <View style={styles.header}>
+        <View style={styles.headerTopRow}>
+          <View style={{ flex: 1 }}>
+            <ThemedText type="title" style={styles.screenTitle}>Currency Exchange</ThemedText>
+            <ThemedText style={styles.screenSubtitle}>Peer-to-peer, zero fees</ThemedText>
+          </View>
+          <Pressable
+            onPress={() => Alert.alert('Info', 'Browse listings or post a request to connect with verified users.')}
+            style={({ pressed }) => [
+              styles.iconButton,
+              {
+                backgroundColor: Colors[colorScheme ?? 'light'].background,
+                borderColor: Colors[colorScheme ?? 'light'].border,
+                opacity: pressed ? 0.7 : 1,
+              },
+            ]}
+            hitSlop={8}
+          >
+            <IconSymbol name="info.circle" size={18} color={Colors[colorScheme ?? 'light'].icon} />
+          </Pressable>
         </View>
-        <View style={styles.headerButtons}>
-          <ThemedButton
-            title={creating ? 'Close' : 'Create'}
-            onPress={() => {
-              if (creating) {
-                closeForm();
-                return;
-              }
-              setFormMode('create');
-              setEditingPostId(null);
-              setHaveCurrency('');
-              setNeedCurrency('');
-              setAmount('');
-              setPreferredRate('');
-              setCity('');
-              setCreateError(null);
-              setCreating(true);
-            }}
-            variant="secondary"
-            style={{ minWidth: 80 }}
-          />
-        </View>
-      </ThemedView>
 
-      {/* Tabs */}
-      <View style={[styles.tabsContainer, { borderBottomColor: borderColor }]}>
-        <TouchableOpacity 
-          style={[styles.tab, viewMode === 'posts' && styles.activeTab]} 
-          onPress={() => setViewMode('posts')}
-        >
-          <ThemedText style={[styles.tabText, viewMode === 'posts' && styles.activeTabText]}>Available Posts</ThemedText>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={[styles.tab, viewMode === 'requests' && styles.activeTab]} 
-          onPress={() => setViewMode('requests')}
-        >
-          <ThemedText style={[styles.tabText, viewMode === 'requests' && styles.activeTabText]}>
-            My Requests {requests.filter(r => r.status === 'pending' && r.targetUserId === myUserId).length > 0 && `(${requests.filter(r => r.status === 'pending' && r.targetUserId === myUserId).length})`}
-          </ThemedText>
-        </TouchableOpacity>
+        <AppCard style={styles.exchangeCard}>
+          <View style={styles.exchangeBlock}>
+            <ThemedText style={styles.exchangeLabel}>YOU SEND</ThemedText>
+            <CurrencySelector
+              placeholder="Select"
+              value={filterHaveCurrency}
+              onChange={setFilterHaveCurrency}
+            />
+          </View>
+          <View style={styles.swapRow}>
+            <View style={[styles.swapLine, { backgroundColor: Colors[colorScheme ?? 'light'].border }]} />
+            <Pressable
+              onPress={() => {
+                const nextHave = filterNeedCurrency;
+                const nextNeed = filterHaveCurrency;
+                setFilterHaveCurrency(nextHave);
+                setFilterNeedCurrency(nextNeed);
+              }}
+              style={({ pressed }) => [
+                styles.swapButton,
+                { backgroundColor: Colors[colorScheme ?? 'light'].tint, opacity: pressed ? 0.8 : 1 },
+              ]}
+            >
+              <IconSymbol name="arrow.left.arrow.right" size={18} color="#fff" />
+            </Pressable>
+            <View style={[styles.swapLine, { backgroundColor: Colors[colorScheme ?? 'light'].border }]} />
+          </View>
+          <View style={styles.exchangeBlock}>
+            <ThemedText style={styles.exchangeLabel}>THEY RECEIVE</ThemedText>
+            <CurrencySelector
+              placeholder="Select"
+              value={filterNeedCurrency}
+              onChange={setFilterNeedCurrency}
+            />
+          </View>
+        </AppCard>
+
+        <AppCard variant="soft" style={styles.trendCard}>
+          <View style={styles.trendRow}>
+            <ThemedText type="defaultSemiBold">7-Day Rate Trend</ThemedText>
+            <View style={[styles.trendPill, { backgroundColor: 'rgba(34, 209, 139, 0.12)' }]}>
+              <ThemedText style={{ color: '#1b8f3a', fontSize: 12 }}>+0.00%</ThemedText>
+            </View>
+          </View>
+          <View style={styles.trendBars}>
+            {Array.from({ length: 7 }).map((_, i) => (
+              <View
+                key={i}
+                style={[
+                  styles.trendBar,
+                  {
+                    height: 10 + i * 4,
+                    backgroundColor:
+                      i === 6 ? Colors[colorScheme ?? 'light'].tint : Colors[colorScheme ?? 'light'].border,
+                  },
+                ]}
+              />
+            ))}
+          </View>
+        </AppCard>
+
+        <View style={styles.primaryActionsRow}>
+          <SegmentedControl
+            value={viewMode}
+            options={[
+              { value: 'posts', label: 'Browse Listings' },
+              { value: 'requests', label: 'My Requests' },
+            ]}
+            onChange={setViewMode}
+          />
+          <View style={{ marginTop: UI.spacing.sm }}>
+            <ThemedButton
+              title={creating ? 'Close' : 'Post Request'}
+              onPress={() => {
+                if (creating) {
+                  closeForm();
+                  return;
+                }
+                setFormMode('create');
+                setEditingPostId(null);
+                setHaveCurrency('');
+                setNeedCurrency('');
+                setAmount('');
+                setPreferredRate('');
+                setCity('');
+                setCreateError(null);
+                setCreating(true);
+              }}
+              fullWidth
+            />
+          </View>
+        </View>
       </View>
 
       <View style={styles.filterButtons}>
@@ -826,23 +903,92 @@ export default function CurrencyScreen() {
 
 const styles = StyleSheet.create({
   header: {
+    paddingHorizontal: UI.spacing.lg,
+    paddingTop: UI.spacing.lg,
+    paddingBottom: UI.spacing.md,
+    gap: UI.spacing.md,
+  },
+  headerTopRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 16,
+    gap: UI.spacing.md,
   },
-  headerTextContainer: {
+  screenTitle: {
+    fontSize: 28,
+    lineHeight: 32,
+  },
+  screenSubtitle: {
+    fontSize: 13,
+    lineHeight: 16,
+    opacity: 0.75,
+    marginTop: 6,
+  },
+  iconButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  exchangeCard: {
+    padding: UI.spacing.lg,
+    gap: UI.spacing.md,
+  },
+  exchangeBlock: {
+    gap: 8,
+  },
+  exchangeLabel: {
+    fontSize: 11,
+    lineHeight: 14,
+    opacity: 0.65,
+    letterSpacing: 0.6,
+  },
+  swapRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: UI.spacing.sm,
+    marginTop: 2,
+    marginBottom: 2,
+  },
+  swapLine: {
+    height: 1,
     flex: 1,
-    marginRight: 16,
   },
-  headerButtons: {
-    flexDirection: 'row',
-    marginTop: 4,
+  swapButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  tabsContainer: {
+  trendCard: {
+    padding: UI.spacing.lg,
+  },
+  trendRow: {
     flexDirection: 'row',
-    marginBottom: 16,
-    borderBottomWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  trendPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  trendBars: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 8,
+    marginTop: UI.spacing.md,
+  },
+  trendBar: {
+    flex: 1,
+    borderRadius: 6,
+  },
+  primaryActionsRow: {
+    gap: UI.spacing.sm,
   },
   filterButtons: {
     flexDirection: 'row',
@@ -850,22 +996,6 @@ const styles = StyleSheet.create({
   },
   filterRow: {
     width: '100%',
-  },
-  tab: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    marginRight: 10,
-  },
-  activeTab: {
-    borderBottomWidth: 2,
-    borderBottomColor: '#0a7ea4',
-  },
-  tabText: {
-    opacity: 0.6,
-  },
-  activeTabText: {
-    fontWeight: 'bold',
-    color: '#0a7ea4',
   },
   form: {
     gap: 12,
@@ -875,6 +1005,44 @@ const styles = StyleSheet.create({
   },
   list: {
     gap: 16,
+  },
+  postCard: {
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    gap: 12,
+  },
+  postHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  userCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  postMeta: {
+    fontSize: 12,
+    lineHeight: 14,
+    opacity: 0.75,
+    marginTop: 2,
+  },
+  ratePill: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  ratePillText: {
+    fontSize: 12,
+    lineHeight: 14,
+    opacity: 0.9,
+  },
+  postMainRow: {},
+  postAmountText: {
+    fontSize: 16,
+    lineHeight: 20,
   },
   card: {
     padding: 16,

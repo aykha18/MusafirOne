@@ -1,4 +1,4 @@
-import { StyleSheet, View, Alert, ActivityIndicator, ScrollView } from 'react-native';
+import { StyleSheet, View, Alert, ActivityIndicator, ScrollView, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useState, useEffect } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
@@ -10,9 +10,10 @@ import { ThemedInput } from '@/components/themed-input';
 import { CitySelector } from '@/components/city-selector';
 import { apiClient, type VerificationDocument } from '@/api/client';
 import { disconnectSocket } from '@/api/socket';
-import { Colors } from '@/constants/theme';
+import { Colors, UI } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { AppCard } from '@/components/ui/app-card';
 
 type UserProfile = {
   id: string;
@@ -61,8 +62,7 @@ export default function ProfileScreen() {
           cast.phoneNumber?.startsWith('google_') ? '' : (cast.phoneNumber ?? ''),
         );
       }
-    } catch (e) {
-      // console.error(e);
+    } catch {
       Alert.alert('Error', 'Failed to load profile');
     } finally {
       setLoading(false);
@@ -74,7 +74,7 @@ export default function ProfileScreen() {
     try {
       const docs = await apiClient.listMyVerificationDocuments();
       setDocuments(docs);
-    } catch (e) {
+    } catch {
       setDocuments([]);
     } finally {
       setLoadingDocuments(false);
@@ -137,7 +137,7 @@ export default function ProfileScreen() {
               // Navigate to the index tab specifically
               // Use navigate instead of replace to ensure tab switching works
               router.navigate('/');
-            } catch (e) {
+            } catch {
               // console.error('Logout error:', e);
               Alert.alert('Error', 'Failed to logout');
             }
@@ -231,40 +231,106 @@ export default function ProfileScreen() {
   };
 
   return (
-    <ThemedView style={styles.container}>
+    <ThemedView style={[styles.container, { backgroundColor: Colors[colorScheme ?? 'light'].surface }]}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <View style={styles.avatarContainer}>
+        <View style={styles.topHeader}>
+          <ThemedText type="title" style={styles.topHeaderTitle}>
+            My Profile
+          </ThemedText>
+          <Pressable
+            onPress={() => setEditingDetails(true)}
+            style={({ pressed }) => [
+              styles.iconButton,
+              {
+                backgroundColor: Colors[colorScheme ?? 'light'].background,
+                borderColor: Colors[colorScheme ?? 'light'].border,
+                opacity: pressed ? 0.7 : 1,
+              },
+            ]}
+            hitSlop={8}
+          >
+            <IconSymbol name="square.and.pencil" size={18} color={Colors[colorScheme ?? 'light'].icon} />
+          </Pressable>
+        </View>
+
+        <AppCard style={styles.profileCard}>
+          <View style={styles.profileRow}>
             <View style={[styles.avatar, { backgroundColor: Colors[colorScheme ?? 'light'].tint }]}>
-              <ThemedText style={styles.avatarText}>
+              <ThemedText style={styles.avatarText} lightColor="#fff" darkColor="#fff">
                 {user.fullName ? user.fullName.charAt(0).toUpperCase() : '?'}
               </ThemedText>
             </View>
-            <ThemedText type="title" style={styles.name}>{user.fullName || 'User'}</ThemedText>
-            <ThemedText style={styles.phone}>
-              {isPlaceholderPhone ? 'Phone not set' : user.phoneNumber}
-            </ThemedText>
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <ThemedText type="subtitle" style={styles.sectionTitle}>Verification</ThemedText>
-          <View style={[styles.card, { borderColor: Colors[colorScheme ?? 'light'].icon }]}>
-            <View style={styles.row}>
-              <IconSymbol name="checkmark.shield.fill" size={24} color={Colors[colorScheme ?? 'light'].tint} />
-              <View style={styles.rowContent}>
-                <ThemedText type="defaultSemiBold">Level {user.verificationLevel}</ThemedText>
-                <ThemedText style={styles.subtext}>Trust Score: {user.trustScore}</ThemedText>
+            <View style={{ flex: 1 }}>
+              <ThemedText type="defaultSemiBold" style={styles.profileName}>
+                {user.fullName || 'User'}
+              </ThemedText>
+              <ThemedText style={styles.profileMeta}>
+                {(user.city ? `${user.city}` : 'City not set') +
+                  (user.corridor ? ` · ${user.corridor}` : '')}
+              </ThemedText>
+              <View style={[styles.verifiedPill, { backgroundColor: Colors[colorScheme ?? 'light'].surface }]}>
+                <IconSymbol name="checkmark.seal.fill" size={14} color={Colors[colorScheme ?? 'light'].tint} />
+                <ThemedText style={[styles.verifiedText, { color: Colors[colorScheme ?? 'light'].tint }]}>
+                  Level {user.verificationLevel} Verified
+                </ThemedText>
               </View>
+              <ThemedText style={styles.phone}>
+                {isPlaceholderPhone ? 'Phone not set' : user.phoneNumber}
+              </ThemedText>
             </View>
           </View>
+        </AppCard>
+
+        <View style={styles.statsRow}>
+          <AppCard style={styles.statCard} variant="soft">
+            <ThemedText type="defaultSemiBold" style={styles.statValue}>0</ThemedText>
+            <ThemedText style={styles.statLabel}>Exchanges</ThemedText>
+          </AppCard>
+          <AppCard style={styles.statCard} variant="soft">
+            <ThemedText type="defaultSemiBold" style={styles.statValue}>0</ThemedText>
+            <ThemedText style={styles.statLabel}>Parcels</ThemedText>
+          </AppCard>
+          <AppCard style={styles.statCard} variant="soft">
+            <ThemedText type="defaultSemiBold" style={styles.statValue}>0.0</ThemedText>
+            <ThemedText style={styles.statLabel}>Rating</ThemedText>
+          </AppCard>
+          <AppCard style={styles.statCard} variant="soft">
+            <ThemedText type="defaultSemiBold" style={styles.statValue}>0</ThemedText>
+            <ThemedText style={styles.statLabel}>Community</ThemedText>
+          </AppCard>
         </View>
+
+        <AppCard style={[styles.trustCard, { backgroundColor: '#0B2A6F', borderColor: 'transparent' }]}>
+          <ThemedText style={styles.trustLabel} lightColor="#D7E6FF" darkColor="#D7E6FF">
+            Trust Score
+          </ThemedText>
+          <View style={styles.trustScoreRow}>
+            <ThemedText style={styles.trustScore} lightColor="#fff" darkColor="#fff">
+              {user.trustScore}
+            </ThemedText>
+            <ThemedText style={styles.trustOutOf} lightColor="#D7E6FF" darkColor="#D7E6FF">
+              / 100
+            </ThemedText>
+            <View style={{ flex: 1 }} />
+            <View style={styles.trustChip}>
+              <ThemedText style={styles.trustChipText} lightColor="#0B2A6F" darkColor="#0B2A6F">
+                {user.trustScore >= 80 ? 'Excellent' : user.trustScore >= 50 ? 'Good' : 'New'}
+              </ThemedText>
+            </View>
+          </View>
+          <View style={styles.trustBarBg}>
+            <View style={[styles.trustBarFill, { width: `${Math.min(100, Math.max(0, user.trustScore))}%` }]} />
+          </View>
+          <ThemedText style={styles.trustHint} lightColor="#D7E6FF" darkColor="#D7E6FF">
+            Complete more transactions to improve your trust score.
+          </ThemedText>
+        </AppCard>
 
         <View style={styles.section}>
           <ThemedText type="subtitle" style={styles.sectionTitle}>
             Mobile Verification (Level 1)
           </ThemedText>
-          <View style={[styles.card, { borderColor: Colors[colorScheme ?? 'light'].icon }]}>
+          <AppCard style={styles.card}>
             {!needsPhoneVerification ? (
               <ThemedText style={styles.subtext}>Your phone is verified.</ThemedText>
             ) : (
@@ -311,14 +377,14 @@ export default function ProfileScreen() {
                 )}
               </>
             )}
-          </View>
+          </AppCard>
         </View>
 
         <View style={styles.section}>
           <ThemedText type="subtitle" style={styles.sectionTitle}>
             Document Verification (Level 2)
           </ThemedText>
-          <View style={[styles.card, { borderColor: Colors[colorScheme ?? 'light'].icon }]}>
+          <AppCard style={styles.card}>
             <View style={styles.docsButtons}>
               <ThemedButton
                 title={uploading ? 'Uploading…' : 'Upload ID'}
@@ -369,12 +435,12 @@ export default function ProfileScreen() {
                 />
               </View>
             )}
-          </View>
+          </AppCard>
         </View>
 
         <View style={styles.section}>
           <ThemedText type="subtitle" style={styles.sectionTitle}>Details</ThemedText>
-          <View style={[styles.card, { borderColor: Colors[colorScheme ?? 'light'].icon }]}>
+          <AppCard style={styles.card}>
             {editingDetails ? (
               <View style={{ gap: 10 }}>
                 <CitySelector value={editCity} onChange={setEditCity} placeholder="Select City" />
@@ -424,7 +490,7 @@ export default function ProfileScreen() {
                 </View>
               </>
             )}
-          </View>
+          </AppCard>
         </View>
 
         <View style={styles.logout}>
@@ -443,59 +509,170 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 16,
   },
   scrollContent: {
-    paddingBottom: 24,
+    paddingHorizontal: UI.spacing.lg,
+    paddingTop: UI.spacing.lg,
+    paddingBottom: 90,
   },
   centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  header: {
+  topHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 24,
+    justifyContent: 'space-between',
+    marginBottom: UI.spacing.md,
   },
-  avatarContainer: {
+  topHeaderTitle: {
+    fontSize: 28,
+    lineHeight: 32,
+  },
+  iconButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1,
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileCard: {
+    padding: UI.spacing.lg,
+  },
+  profileRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: UI.spacing.md,
   },
   avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
   },
   avatarText: {
-    fontSize: 32,
+    fontSize: 18,
     fontWeight: 'bold',
-    color: '#fff',
   },
-  name: {
-    marginBottom: 4,
+  profileName: {
+    fontSize: 18,
+    lineHeight: 22,
+  },
+  profileMeta: {
+    fontSize: 13,
+    lineHeight: 16,
+    opacity: 0.8,
+    marginTop: 4,
+  },
+  verifiedPill: {
+    marginTop: 10,
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  verifiedText: {
+    fontSize: 12,
+    lineHeight: 14,
   },
   phone: {
+    marginTop: 8,
     opacity: 0.6,
+    fontSize: 12,
+    lineHeight: 14,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    gap: UI.spacing.sm,
+    marginTop: UI.spacing.md,
+  },
+  statCard: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  statValue: {
+    fontSize: 16,
+    lineHeight: 20,
+  },
+  statLabel: {
+    fontSize: 11,
+    lineHeight: 14,
+    opacity: 0.75,
+  },
+  trustCard: {
+    padding: UI.spacing.lg,
+    marginTop: UI.spacing.lg,
+  },
+  trustLabel: {
+    fontSize: 13,
+    lineHeight: 16,
+    opacity: 0.95,
+  },
+  trustScoreRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 6,
+    marginTop: 8,
+  },
+  trustScore: {
+    fontSize: 40,
+    lineHeight: 44,
+    fontWeight: '800',
+  },
+  trustOutOf: {
+    fontSize: 14,
+    lineHeight: 18,
+    paddingBottom: 8,
+    opacity: 0.95,
+  },
+  trustChip: {
+    backgroundColor: '#22D18B',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  trustChipText: {
+    fontSize: 12,
+    lineHeight: 14,
+    fontWeight: '700',
+  },
+  trustBarBg: {
+    height: 6,
+    backgroundColor: 'rgba(255,255,255,0.20)',
+    borderRadius: 999,
+    overflow: 'hidden',
+    marginTop: UI.spacing.md,
+  },
+  trustBarFill: {
+    height: '100%',
+    backgroundColor: '#22D18B',
+    borderRadius: 999,
+  },
+  trustHint: {
+    marginTop: UI.spacing.sm,
+    fontSize: 12,
+    lineHeight: 16,
+    opacity: 0.95,
   },
   section: {
     marginBottom: 24,
   },
   sectionTitle: {
     marginBottom: 12,
+    fontSize: 18,
   },
   card: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 12,
-    padding: 16,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  rowContent: {
-    marginLeft: 12,
+    padding: UI.spacing.lg,
   },
   subtext: {
     fontSize: 12,

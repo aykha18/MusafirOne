@@ -43,6 +43,8 @@ const MAPPING = {
   'questionmark.circle': 'help-outline',
   gift: 'card-giftcard',
   'rectangle.portrait.and.arrow.right': 'logout',
+  airplane: 'flight-takeoff',
+  calendar: 'event',
 } as IconMapping;
 
 /**

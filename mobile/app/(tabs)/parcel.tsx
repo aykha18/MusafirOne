@@ -32,6 +32,17 @@ type ParcelTrip = {
   requests?: ParcelRequest[];
 };
 
+type TravelerTrip = ParcelTrip & {
+  ui: {
+    travelerName: string;
+    verified: boolean;
+    rating: number;
+    tripCount: number;
+    pricePerKgAed: number;
+    note: string;
+  };
+};
+
 type ParcelRequest = {
   id: string;
   fromCountry: string;
@@ -51,6 +62,19 @@ type ParcelItemTypeOption = {
   label: string;
 };
 
+const normalizeText = (value: string) => value.trim().toLowerCase();
+
+function matchesCountryFilter(value: string, country?: Country) {
+  if (!country) return true;
+  const v = normalizeText(value);
+  return v === normalizeText(country.name) || v === normalizeText(country.code);
+}
+
+function matchesTextFilter(value: string | undefined, filter: string) {
+  if (!filter) return true;
+  return normalizeText(value ?? '').includes(normalizeText(filter));
+}
+
 export default function ParcelScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
@@ -60,7 +84,7 @@ export default function ParcelScreen() {
   const badgeBackgroundColor = isDark ? '#3A3A3C' : '#e0e0e0';
   const borderColor = isDark ? '#333' : '#e0e0e0';
 
-  const [viewMode, setViewMode] = useState<'trips' | 'requests'>('requests');
+  const [viewMode, setViewMode] = useState<'trips' | 'requests'>('trips');
   
   const [trips, setTrips] = useState<ParcelTrip[]>([]);
   
@@ -70,6 +94,8 @@ export default function ParcelScreen() {
   
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searchDestination, setSearchDestination] = useState('');
+  const [expandedTripId, setExpandedTripId] = useState<string | null>(null);
   
   const [showTripForm, setShowTripForm] = useState(false);
   const [showRequestForm, setShowRequestForm] = useState(false);
@@ -130,6 +156,158 @@ export default function ParcelScreen() {
   const [disputeModalVisible, setDisputeModalVisible] = useState(false);
   const [selectedRequestForDispute, setSelectedRequestForDispute] = useState<ParcelRequest | null>(null);
   const [disputeBusy, setDisputeBusy] = useState(false);
+
+  const seededTrips: TravelerTrip[] = useMemo(() => {
+    const baseDate = new Date();
+    const inDays = (days: number) => {
+      const d = new Date(baseDate);
+      d.setDate(d.getDate() + days);
+      return d.toISOString();
+    };
+    return [
+      {
+        id: 'seed-trip-1',
+        fromCountry: 'Dubai (DXB)',
+        toCountry: 'Mumbai (BOM)',
+        departureDate: inDays(3),
+        arrivalDate: inDays(4),
+        maxWeightKg: 3,
+        allowedCategories: 'Documents, Clothes',
+        userId: 'seed-user-1',
+        status: 'active',
+        ui: {
+          travelerName: 'Hassan M.',
+          verified: true,
+          rating: 4.9,
+          tripCount: 18,
+          pricePerKgAed: 25,
+          note: 'Travelling for work. Happy to carry small parcels.',
+        },
+      },
+      {
+        id: 'seed-trip-2',
+        fromCountry: 'Abu Dhabi (AUH)',
+        toCountry: 'Karachi (KHI)',
+        departureDate: inDays(7),
+        arrivalDate: inDays(8),
+        maxWeightKg: 5,
+        allowedCategories: 'Documents, Food',
+        userId: 'seed-user-2',
+        status: 'active',
+        ui: {
+          travelerName: 'Aisha T.',
+          verified: true,
+          rating: 5,
+          tripCount: 31,
+          pricePerKgAed: 20,
+          note: 'Frequent traveler. Can carry up to 5kg if items are well packed.',
+        },
+      },
+      {
+        id: 'seed-trip-3',
+        fromCountry: 'Sharjah (SHJ)',
+        toCountry: 'Dhaka (DAC)',
+        departureDate: inDays(11),
+        arrivalDate: inDays(12),
+        maxWeightKg: 4,
+        allowedCategories: 'Electronics, Documents',
+        userId: 'seed-user-3',
+        status: 'active',
+        ui: {
+          travelerName: 'Bilal K.',
+          verified: true,
+          rating: 4.7,
+          tripCount: 12,
+          pricePerKgAed: 18,
+          note: 'Carrying light electronics only. No liquids or restricted items.',
+        },
+      },
+      {
+        id: 'seed-trip-4',
+        fromCountry: 'Dubai (DXB)',
+        toCountry: 'Lahore (LHE)',
+        departureDate: inDays(5),
+        arrivalDate: inDays(6),
+        maxWeightKg: 2,
+        allowedCategories: 'Documents, Medicine',
+        userId: 'seed-user-4',
+        status: 'active',
+        ui: {
+          travelerName: 'Ahmed K.',
+          verified: false,
+          rating: 4.6,
+          tripCount: 9,
+          pricePerKgAed: 22,
+          note: 'Quick trip. Can carry documents/medicine with clear labels.',
+        },
+      },
+      {
+        id: 'seed-trip-5',
+        fromCountry: 'Dubai (DXB)',
+        toCountry: 'Delhi (DEL)',
+        departureDate: inDays(9),
+        arrivalDate: inDays(10),
+        maxWeightKg: 3,
+        allowedCategories: 'Clothes, Food',
+        userId: 'seed-user-5',
+        status: 'active',
+        ui: {
+          travelerName: 'Fatima R.',
+          verified: true,
+          rating: 4.8,
+          tripCount: 21,
+          pricePerKgAed: 24,
+          note: 'Happy to help students and families. Flexible pickup near metro.',
+        },
+      },
+    ];
+  }, []);
+
+  const travelerTrips: TravelerTrip[] = useMemo(() => {
+    const mappedActual: TravelerTrip[] = trips.map((t, idx) => ({
+      ...t,
+      ui: {
+        travelerName: `Traveler ${idx + 1}`,
+        verified: false,
+        rating: 4.7,
+        tripCount: 10,
+        pricePerKgAed: 20,
+        note: 'Available to carry small parcels.',
+      },
+    }));
+
+    const source: TravelerTrip[] =
+      mappedActual.length >= 5
+        ? mappedActual
+        : [...mappedActual, ...seededTrips.slice(0, Math.max(0, 5 - mappedActual.length))];
+
+    const q = searchDestination.trim().toLowerCase();
+    const filteredBySearch = q.length
+      ? source.filter((t) => {
+          const haystack = `${t.ui.travelerName} ${t.fromCountry} ${t.toCountry}`.toLowerCase();
+          return haystack.includes(q);
+        })
+      : source;
+
+    return filteredBySearch.filter((t) => {
+      if (filterMineOnly && myUserId && t.userId !== myUserId) return false;
+      if (!matchesCountryFilter(t.fromCountry, filterFromCountry)) return false;
+      if (!matchesCountryFilter(t.toCountry, filterToCountry)) return false;
+      if (!matchesTextFilter(t.allowedCategories, filterItemType)) return false;
+      if (!matchesTextFilter(t.status, filterStatus)) return false;
+      return t.status === 'active';
+    });
+  }, [
+    trips,
+    seededTrips,
+    searchDestination,
+    filterMineOnly,
+    myUserId,
+    filterFromCountry,
+    filterToCountry,
+    filterItemType,
+    filterStatus,
+  ]);
 
   const categoryTiles = useMemo(() => {
     const pick = (label: string) => {
@@ -635,120 +813,131 @@ export default function ParcelScreen() {
     }
   };
 
-  const renderTripItem = ({ item }: { item: ParcelTrip }) => {
-    const isMyTrip = item.userId === myUserId;
-    const isMatched = item.status === 'matched';
-    const isCompleted = item.status === 'completed';
-    
-    // Check for pending requests on my trip
-    const pendingRequests = isMyTrip && item.requests ? item.requests.filter(r => r.status === 'pending') : [];
+  const renderTripItem = ({ item }: { item: TravelerTrip }) => {
+    const expanded = expandedTripId === item.id;
+    const departure = new Date(item.departureDate);
+    const now = new Date();
+    const daysLeft = Math.max(0, Math.ceil((departure.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
 
     return (
-      <ThemedView style={[styles.card, { backgroundColor: cardBackgroundColor, borderColor }]}>
-        <View style={styles.cardHeader}>
-          <ThemedText type="defaultSemiBold" style={{ flex: 1 }}>
-            {item.fromCountry} ➡️ {item.toCountry}
-          </ThemedText>
-          {(isMyTrip || isMatched || isCompleted) && (
-            <ThemedText style={[styles.badge, { backgroundColor: badgeBackgroundColor }]}>
-              {isCompleted ? 'Completed' : isMatched ? 'Matched' : 'My Trip'}
-            </ThemedText>
-          )}
-        </View>
-        <ThemedText>Depart: {new Date(item.departureDate).toLocaleDateString()} {new Date(item.departureDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</ThemedText>
-        <ThemedText>Arrive: {new Date(item.arrivalDate).toLocaleDateString()} {new Date(item.arrivalDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</ThemedText>
-        <ThemedText>Max Weight: {item.maxWeightKg} kg</ThemedText>
-        {item.allowedCategories && <ThemedText>Categories: {item.allowedCategories}</ThemedText>}
-        
-        {/* Pending Requests Section for Trip Owner */}
-        {pendingRequests.length > 0 && (
-          <View style={styles.sectionSpacing}>
-            <ThemedText type="defaultSemiBold" style={{color: Colors.light.tint}}>Pending Requests ({pendingRequests.length})</ThemedText>
-            {pendingRequests.map(req => {
-               const iInitiated = req.matchInitiatedByUserId === myUserId;
-               return (
-                 <View key={req.id} style={[styles.card, { marginHorizontal: 0, marginTop: 8 }]}>
-                    <ThemedText>Item: {req.itemType} ({req.weightKg}kg)</ThemedText>
-                    <View style={styles.cardActions}>
-                      {iInitiated ? (
-                        <ThemedText style={{fontStyle: 'italic', color: '#666'}}>Waiting for acceptance...</ThemedText>
-                      ) : (
-                        <>
-                          <ThemedButton 
-                        title="Accept" 
-                        onPress={() => handleAcceptMatch(req.id)} 
-                        disabled={matchingBusy}
-                        style={{ marginRight: 8 }}
-                      />
-                      <ThemedButton 
-                        title="Reject" 
-                        onPress={() => handleRejectMatch(req.id)} 
-                        disabled={matchingBusy}
-                        variant="secondary"
-                        style={{ marginRight: 8 }}
-                      />
-                      <ThemedButton 
-                        title="Connect" 
-                        onPress={() => handleMessage(req.userId, undefined, req.id)} 
-                        disabled={matchingBusy}
-                        variant="secondary"
-                      />
-                    </>
-                  )}
+      <Pressable
+        onPress={() => setExpandedTripId((prev) => (prev === item.id ? null : item.id))}
+        style={({ pressed }) => [{ opacity: pressed ? 0.9 : 1 }]}
+      >
+        <AppCard style={styles.travelerCard}>
+          <View style={styles.travelerHeaderRow}>
+            <View style={styles.travelerAvatar}>
+              <ThemedText type="defaultSemiBold" style={{ color: '#fff' }}>
+                {item.ui.travelerName.trim().slice(0, 1).toUpperCase()}
+              </ThemedText>
+            </View>
+
+            <View style={{ flex: 1 }}>
+              <View style={styles.travelerNameRow}>
+                <ThemedText type="defaultSemiBold" numberOfLines={1}>
+                  {item.ui.travelerName}
+                </ThemedText>
+                {item.ui.verified ? (
+                  <IconSymbol name="checkmark.seal.fill" size={16} color={Colors[colorScheme ?? 'light'].tint} />
+                ) : null}
+              </View>
+
+              <View style={styles.routeRow}>
+                <IconSymbol name="airplane" size={16} color={Colors[colorScheme ?? 'light'].icon} />
+                <ThemedText style={styles.routeText} numberOfLines={1}>
+                  {item.fromCountry} → {item.toCountry}
+                </ThemedText>
+              </View>
+
+              <View style={styles.routeRow}>
+                <IconSymbol name="calendar" size={16} color={Colors[colorScheme ?? 'light'].icon} />
+                <ThemedText style={styles.routeText}>
+                  {departure.toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                </ThemedText>
+                <View style={styles.daysLeftPill}>
+                  <ThemedText style={styles.daysLeftText}>{daysLeft}d left</ThemedText>
                 </View>
-             </View>
-           );
-        })}
-      </View>
-    )}
+              </View>
+            </View>
 
-    {isMyTrip && item.status === 'active' && (
-      <View style={[styles.cardActions, styles.cardActionsColumn]}>
-        <View style={styles.rowButtons}>
-          <ThemedButton 
-            title="Find Packages" 
-            onPress={() => findRequestsForTrip(item)} 
-            disabled={busy || matchingBusy}
-            style={{ flex: 1, marginRight: 8 }}
-          />
-          <ThemedButton 
-            title="Edit" 
-            onPress={() => startEditTrip(item)} 
-            disabled={busy || matchingBusy}
-            variant="secondary"
-            style={{ flex: 1 }}
-          />
-        </View>
-        <View style={{ height: 8 }} />
-        <ThemedButton 
-          title="Complete Trip" 
-          onPress={() => handleCompleteTrip(item.id)} 
-          disabled={busy}
-          variant="secondary"
-          fullWidth
-        />
-      </View>
-    )}
+            <IconSymbol
+              name="chevron.right"
+              size={18}
+              color={Colors[colorScheme ?? 'light'].icon}
+              style={{ transform: [{ rotate: expanded ? '90deg' : '0deg' }] }}
+            />
+          </View>
 
-        {!isMyTrip && item.status === 'active' && (
-       <View style={[styles.cardActions, { justifyContent: 'space-between' }]}>
-         <ThemedButton 
-           title="Send Package" 
-           onPress={() => findRequestsForTrip(item)} 
-           disabled={matchingBusy}
-           style={{ flex: 1, marginRight: 8 }}
-         />
-         <ThemedButton 
-           title="Connect" 
-           onPress={() => handleMessage(item.userId)} 
-           disabled={matchingBusy}
-           variant="secondary"
-           style={{ flex: 1 }}
-         />
-       </View>
-    )}
-  </ThemedView>
-);
+          <View style={styles.metricsRow}>
+            <View
+              style={[
+                styles.metricPill,
+                { backgroundColor: Colors[colorScheme ?? 'light'].surface, borderColor: Colors[colorScheme ?? 'light'].border },
+              ]}
+            >
+              <IconSymbol name="star.fill" size={16} color="#F5B301" />
+              <ThemedText style={styles.metricText}>
+                {item.ui.rating} · {item.ui.tripCount} trips
+              </ThemedText>
+            </View>
+            <View
+              style={[
+                styles.metricPill,
+                { backgroundColor: Colors[colorScheme ?? 'light'].surface, borderColor: Colors[colorScheme ?? 'light'].border },
+              ]}
+            >
+              <IconSymbol name="shippingbox.fill" size={16} color={Colors[colorScheme ?? 'light'].icon} />
+              <ThemedText style={styles.metricText}>Up to {item.maxWeightKg} kg</ThemedText>
+            </View>
+            <View
+              style={[
+                styles.metricPill,
+                { backgroundColor: Colors[colorScheme ?? 'light'].surface, borderColor: Colors[colorScheme ?? 'light'].border },
+              ]}
+            >
+              <ThemedText style={styles.metricText}>AED {item.ui.pricePerKgAed}/kg</ThemedText>
+            </View>
+          </View>
+
+          {expanded ? (
+            <>
+              <ThemedText style={styles.travelerNote}>{item.ui.note}</ThemedText>
+              {item.userId === myUserId ? (
+                <View style={styles.myTripActionsRow}>
+                  <ThemedButton
+                    title="Edit"
+                    variant="secondary"
+                    onPress={() => startEditTrip(item)}
+                    disabled={busy || matchingBusy}
+                    style={{ flex: 1 }}
+                  />
+                  <ThemedButton
+                    title="Complete"
+                    variant="secondary"
+                    onPress={() => handleCompleteTrip(item.id)}
+                    disabled={busy || matchingBusy}
+                    style={{ flex: 1 }}
+                  />
+                </View>
+              ) : (
+                <ThemedButton
+                  title="Request This Traveler"
+                  onPress={() => {
+                    if (item.id.startsWith('seed-')) {
+                      Alert.alert('Demo', 'This is seeded demo data. Create a real request to match.');
+                      return;
+                    }
+                    findRequestsForTrip(item);
+                  }}
+                  fullWidth
+                  style={{ backgroundColor: '#F08A1A', borderColor: '#F08A1A' }}
+                />
+              )}
+            </>
+          ) : null}
+        </AppCard>
+      </Pressable>
+    );
   };
 
   const renderRequestItem = ({ item }: { item: ParcelRequest }) => {
@@ -947,30 +1136,6 @@ export default function ParcelScreen() {
     );
   };
 
-  const normalize = (value: string) => value.trim().toLowerCase();
-
-  const matchesCountryFilter = (value: string, country?: Country) => {
-    if (!country) return true;
-    const v = normalize(value);
-    return v === normalize(country.name) || v === normalize(country.code);
-  };
-
-  const matchesTextFilter = (value: string | undefined, filter: string) => {
-    if (!filter) return true;
-    return normalize(value ?? '').includes(normalize(filter));
-  };
-
-  const filteredTrips = useMemo(() => {
-    return trips.filter((t) => {
-      if (filterMineOnly && myUserId && t.userId !== myUserId) return false;
-      if (!matchesCountryFilter(t.fromCountry, filterFromCountry)) return false;
-      if (!matchesCountryFilter(t.toCountry, filterToCountry)) return false;
-      if (!matchesTextFilter(t.allowedCategories, filterItemType)) return false;
-      if (!matchesTextFilter(t.status, filterStatus)) return false;
-      return true;
-    });
-  }, [trips, filterMineOnly, myUserId, filterFromCountry, filterToCountry, filterItemType, filterStatus]);
-
   function ItemTypeSelector({
     value,
     onChange,
@@ -1041,7 +1206,7 @@ export default function ParcelScreen() {
             <ThemedText style={styles.screenSubtitle}>Connect with trusted travelers</ThemedText>
           </View>
           <Pressable
-            onPress={() => Alert.alert('Filter', 'Filtering UI will be added here.')}
+            onPress={() => setFiltersVisible((v) => !v)}
             style={({ pressed }) => [
               styles.iconButton,
               {
@@ -1088,6 +1253,7 @@ export default function ParcelScreen() {
             ]}
             onChange={(v) => {
               setViewMode(v);
+              setExpandedTripId(null);
               if (v === 'trips') {
                 setShowRequestForm(false);
                 setShowTripForm(false);
@@ -1100,37 +1266,19 @@ export default function ParcelScreen() {
           />
         </View>
 
-        <View style={styles.headerButtons}>
-          <ThemedButton
-            title={showTripForm ? 'Close trip form' : 'New trip'}
-            onPress={() => {
-              if (showTripForm) {
-                resetTripForm();
-                return;
-              }
-              resetTripForm();
-              setShowRequestForm(false);
-              setShowTripForm(true);
-            }}
-            disabled={busy || creatingBusy}
-            variant="secondary"
-            style={{ flex: 1 }}
-          />
-          <ThemedButton
-            title={showRequestForm ? 'Close request form' : 'Post request'}
-            onPress={() => {
-              if (showRequestForm) {
-                resetRequestForm();
-                return;
-              }
-              resetRequestForm();
-              setShowTripForm(false);
-              setShowRequestForm(true);
-            }}
-            disabled={busy || creatingBusy}
-            style={{ flex: 1 }}
-          />
-        </View>
+        {viewMode === 'trips' ? (
+          <AppCard variant="soft" style={styles.searchCard}>
+            <View style={styles.searchRow}>
+              <IconSymbol name="magnifyingglass" size={18} color={Colors[colorScheme ?? 'light'].icon} />
+              <ThemedInput
+                value={searchDestination}
+                onChangeText={setSearchDestination}
+                placeholder="Search destination..."
+                style={styles.searchInput}
+              />
+            </View>
+          </AppCard>
+        ) : null}
       </View>
 
       {error && <ThemedText style={styles.errorText}>{error}</ThemedText>}
@@ -1378,31 +1526,6 @@ export default function ParcelScreen() {
         </AppCard>
       )}
 
-      {viewMode === 'trips' ? (
-        <View style={styles.filterButtons}>
-          <ThemedButton
-            title={filtersVisible ? 'Hide filters' : 'Filters'}
-            variant="secondary"
-            onPress={() => setFiltersVisible((v) => !v)}
-            disabled={busy}
-            style={{ flex: 1, marginRight: 8 }}
-          />
-          <ThemedButton
-            title="Clear"
-            variant="secondary"
-            onPress={() => {
-              setFilterMineOnly(false);
-              setFilterFromCountry(undefined);
-              setFilterToCountry(undefined);
-              setFilterItemType('');
-              setFilterStatus('');
-            }}
-            disabled={busy}
-            style={{ width: 110 }}
-          />
-        </View>
-      ) : null}
-
       {viewMode === 'trips' && filtersVisible && (
         <View style={styles.form}>
           <View style={styles.filterRow}>
@@ -1436,17 +1559,32 @@ export default function ParcelScreen() {
             value={filterStatus}
             onChangeText={setFilterStatus}
           />
+          <View style={{ marginTop: UI.spacing.sm }}>
+            <ThemedButton
+              title="Clear filters"
+              variant="secondary"
+              onPress={() => {
+                setFilterMineOnly(false);
+                setFilterFromCountry(undefined);
+                setFilterToCountry(undefined);
+                setFilterItemType('');
+                setFilterStatus('');
+              }}
+              disabled={busy}
+              fullWidth
+            />
+          </View>
         </View>
       )}
 
       {viewMode === 'trips' ? (
         <FlatList
-          data={filteredTrips}
+          data={travelerTrips}
           keyExtractor={(item) => item.id}
           renderItem={renderTripItem}
           scrollEnabled={false}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
-          ListEmptyComponent={<ThemedText style={styles.emptyText}>No trips found.</ThemedText>}
+          ListEmptyComponent={<ThemedText style={styles.emptyText}>No travelers found.</ThemedText>}
         />
       ) : (
         <View style={{ marginTop: UI.spacing.md }}>
@@ -1629,10 +1767,103 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 14,
   },
+  searchCard: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginTop: UI.spacing.md,
+  },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  searchInput: {
+    flex: 1,
+    borderWidth: 0,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    fontSize: 14,
+  },
   headerButtons: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+  },
+  travelerCard: {
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    gap: 12,
+  },
+  travelerHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  travelerAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F08A1A',
+  },
+  travelerNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  routeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 6,
+  },
+  routeText: {
+    fontSize: 12,
+    lineHeight: 14,
+    opacity: 0.8,
+  },
+  daysLeftPill: {
+    marginLeft: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(240, 138, 26, 0.12)',
+  },
+  daysLeftText: {
+    fontSize: 12,
+    lineHeight: 14,
+    color: '#F08A1A',
+    fontWeight: '700',
+  },
+  metricsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  metricPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  metricText: {
+    fontSize: 12,
+    lineHeight: 14,
+    opacity: 0.9,
+  },
+  travelerNote: {
+    fontSize: 13,
+    lineHeight: 18,
+    opacity: 0.8,
+  },
+  myTripActionsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 4,
   },
   form: {
     padding: UI.spacing.lg,

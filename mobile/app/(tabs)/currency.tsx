@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View, Alert, Pressable } from 'react-native';
 import { router } from 'expo-router';
 import ParallaxScrollView from '@/components/parallax-scroll-view';
@@ -87,6 +87,21 @@ export default function CurrencyScreen() {
   const [selectedMatchForDispute, setSelectedMatchForDispute] = useState<MatchRequest | null>(null);
   const [disputeBusy, setDisputeBusy] = useState(false);
 
+  const rateCacheRef = useRef(
+    new Map<
+      string,
+      { rate: number; fetchedAtMs: number; updatedAtIso?: string | null }
+    >(),
+  );
+  const rateRequestRef = useRef(0);
+
+  const [marketRate, setMarketRate] = useState<number | null>(null);
+  const [marketRateUpdatedAt, setMarketRateUpdatedAt] = useState<string | null>(
+    null,
+  );
+  const [marketRateLoading, setMarketRateLoading] = useState(false);
+  const [marketRateError, setMarketRateError] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     setBusy(true);
     setError(null);
@@ -116,6 +131,84 @@ export default function CurrencyScreen() {
     }
   }, [myUserId]);
 
+  const formatRate = (value: number) => {
+    if (!Number.isFinite(value)) return '—';
+    if (value === 0) return '0';
+    if (value >= 100) return value.toFixed(2);
+    if (value >= 10) return value.toFixed(3);
+    if (value >= 1) return value.toFixed(4);
+    return value.toFixed(6);
+  };
+
+  const fetchMarketRate = useCallback(async (from: string, to: string) => {
+    const fromCur = from.trim().toUpperCase();
+    const toCur = to.trim().toUpperCase();
+    if (!fromCur || !toCur) {
+      setMarketRate(null);
+      setMarketRateUpdatedAt(null);
+      setMarketRateError(null);
+      return;
+    }
+    if (fromCur === toCur) {
+      setMarketRate(1);
+      setMarketRateUpdatedAt(null);
+      setMarketRateError(null);
+      return;
+    }
+
+    const cacheKey = `${fromCur}->${toCur}`;
+    const cached = rateCacheRef.current.get(cacheKey);
+    const now = Date.now();
+    const cacheTtlMs = 30 * 60 * 1000;
+    if (cached && now - cached.fetchedAtMs < cacheTtlMs) {
+      setMarketRate(cached.rate);
+      setMarketRateUpdatedAt(cached.updatedAtIso ?? null);
+      setMarketRateError(null);
+      return;
+    }
+
+    const requestId = ++rateRequestRef.current;
+    setMarketRateLoading(true);
+    setMarketRateError(null);
+    try {
+      const res = await fetch(`https://open.er-api.com/v6/latest/${fromCur}`);
+      if (!res.ok) {
+        throw new Error(`Rate request failed (${res.status})`);
+      }
+      const json = (await res.json()) as any;
+      const rates = json?.rates as Record<string, number> | undefined;
+      const rate = rates?.[toCur];
+      if (!Number.isFinite(rate)) {
+        throw new Error('Rate not available');
+      }
+      if (requestId !== rateRequestRef.current) {
+        return;
+      }
+      const updatedAtIso =
+        typeof json?.time_last_update_utc === 'string'
+          ? json.time_last_update_utc
+          : null;
+      rateCacheRef.current.set(cacheKey, {
+        rate,
+        fetchedAtMs: now,
+        updatedAtIso,
+      });
+      setMarketRate(rate);
+      setMarketRateUpdatedAt(updatedAtIso);
+    } catch (e) {
+      if (requestId !== rateRequestRef.current) {
+        return;
+      }
+      setMarketRate(null);
+      setMarketRateUpdatedAt(null);
+      setMarketRateError(e instanceof Error ? e.message : String(e));
+    } finally {
+      if (requestId === rateRequestRef.current) {
+        setMarketRateLoading(false);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     if (!apiClient.getAccessToken()) {
       router.push('/');
@@ -123,6 +216,19 @@ export default function CurrencyScreen() {
     }
     void load();
   }, [load]);
+
+  const activeFromCurrency = (haveCurrency || filterHaveCurrency).trim();
+  const activeToCurrency = (needCurrency || filterNeedCurrency).trim();
+
+  useEffect(() => {
+    if (!activeFromCurrency || !activeToCurrency) {
+      setMarketRate(null);
+      setMarketRateUpdatedAt(null);
+      setMarketRateError(null);
+      return;
+    }
+    void fetchMarketRate(activeFromCurrency, activeToCurrency);
+  }, [activeFromCurrency, activeToCurrency, fetchMarketRate]);
 
   const handleCreatePost = async () => {
     setCreatingBusy(true);
@@ -667,10 +773,21 @@ export default function CurrencyScreen() {
             <ThemedText style={styles.marketRateInlineLabel}>Live Market Rate</ThemedText>
             <ThemedText style={styles.marketRateInlineValue}>
               {filterHaveCurrency && filterNeedCurrency
-                ? `1 ${filterHaveCurrency} ≈ ${preferredRate || '—'} ${filterNeedCurrency}`
+                ? marketRateLoading
+                  ? 'Loading…'
+                  : marketRate
+                    ? `1 ${filterHaveCurrency} ≈ ${formatRate(marketRate)} ${filterNeedCurrency}`
+                    : marketRateError
+                      ? 'Unavailable'
+                      : '—'
                 : '—'}
             </ThemedText>
           </View>
+          {marketRateUpdatedAt ? (
+            <ThemedText style={{ marginTop: 6, fontSize: 12, opacity: 0.65 }}>
+              Updated: {marketRateUpdatedAt}
+            </ThemedText>
+          ) : null}
 
           
         </AppCard>
@@ -843,9 +960,14 @@ export default function CurrencyScreen() {
                   <ThemedText type="defaultSemiBold">{needCurrency || filterNeedCurrency || '---'}</ThemedText>
                 </View>
               </View>
-              {haveCurrency && needCurrency && preferredRate ? (
+              {activeFromCurrency && activeToCurrency && marketRate ? (
                 <ThemedText style={styles.marketRateLine}>
-                  1 {haveCurrency} ≈ {preferredRate} {needCurrency}
+                  Today: 1 {activeFromCurrency} ≈ {formatRate(marketRate)} {activeToCurrency}
+                </ThemedText>
+              ) : null}
+              {haveCurrency && needCurrency && preferredRate ? (
+                <ThemedText style={[styles.marketRateLine, { opacity: 0.75 }]}>
+                  Yours: 1 {haveCurrency} ≈ {preferredRate} {needCurrency}
                 </ThemedText>
               ) : null}
             </View>

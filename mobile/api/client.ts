@@ -768,7 +768,7 @@ const inferredLocalBaseUrl =
         : 'http://192.168.1.33:3000';
 
 const defaultBaseUrl =
-  !Constants.isDevice && Platform.OS !== 'web'
+  __DEV__ && !Constants.isDevice && Platform.OS !== 'web'
     ? inferredLocalBaseUrl
     : configuredApiUrl ?? inferredLocalBaseUrl;
 

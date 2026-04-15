@@ -26,6 +26,8 @@ type ParcelTrip = {
   departureDate: string;
   arrivalDate: string;
   maxWeightKg: number;
+  reservedWeightKg?: number;
+  remainingWeightKg?: number;
   allowedCategories?: string;
   userId: string;
   status: string;
@@ -495,6 +497,13 @@ export default function ParcelScreen() {
       Alert.alert('Invalid', 'Please enter a valid weight.');
       return;
     }
+    if (weightKg > selectedTravelerTrip.maxWeightKg) {
+      Alert.alert(
+        'Too heavy',
+        `This traveler can carry up to ${selectedTravelerTrip.maxWeightKg} kg.`,
+      );
+      return;
+    }
     if (requestTravelerValueAed.trim().length > 0) {
       if (!Number.isFinite(declaredValueAed) || declaredValueAed < 0) {
         Alert.alert('Invalid', 'Please enter a valid value.');
@@ -912,6 +921,13 @@ export default function ParcelScreen() {
     const departure = new Date(item.departureDate);
     const now = new Date();
     const daysLeft = Math.max(0, Math.ceil((departure.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+    const remainingKg =
+      typeof item.remainingWeightKg === 'number'
+        ? item.remainingWeightKg
+        : typeof item.reservedWeightKg === 'number'
+          ? Math.max(0, item.maxWeightKg - item.reservedWeightKg)
+          : undefined;
+    const isFull = typeof remainingKg === 'number' && remainingKg <= 0;
 
     return (
       <Pressable
@@ -981,7 +997,13 @@ export default function ParcelScreen() {
               ]}
             >
               <IconSymbol name="shippingbox.fill" size={16} color={Colors[colorScheme ?? 'light'].icon} />
-              <ThemedText style={styles.metricText}>Up to {item.maxWeightKg} kg</ThemedText>
+              <ThemedText style={styles.metricText}>
+                {typeof remainingKg !== 'number'
+                  ? `Up to ${item.maxWeightKg} kg`
+                  : isFull
+                    ? 'Full'
+                    : `Available ${remainingKg} kg`}
+              </ThemedText>
             </View>
             <View
               style={[
@@ -1021,6 +1043,10 @@ export default function ParcelScreen() {
                       Alert.alert('Demo', 'This is seeded demo data. Create a real request to match.');
                       return;
                     }
+                    if (isFull) {
+                      Alert.alert('Full', 'This traveler has no capacity left.');
+                      return;
+                    }
                     if (!apiClient.getAccessToken()) {
                       Alert.alert('Login required', 'Please login to request a traveler.');
                       router.push('/');
@@ -1052,6 +1078,7 @@ export default function ParcelScreen() {
                     openCreateTravelerRequest(item);
                   }}
                   fullWidth
+                  disabled={isFull}
                   style={{ backgroundColor: '#F08A1A', borderColor: '#F08A1A' }}
                 />
               )}

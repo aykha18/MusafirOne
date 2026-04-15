@@ -108,8 +108,31 @@ export class ParcelService {
         where,
       }),
     ]);
+    const tripIds = items.map((t) => t.id);
+    const reservedByTrip = new Map<string, number>();
+    if (tripIds.length > 0) {
+      const reserved = await this.prisma.parcelRequest.groupBy({
+        by: ['tripId'],
+        where: {
+          tripId: { in: tripIds },
+          deletedAt: null,
+          status: { in: ['pending', 'matched'] },
+        },
+        _sum: { weightKg: true },
+      });
+      for (const row of reserved) {
+        if (row.tripId) {
+          reservedByTrip.set(row.tripId, row._sum.weightKg ?? 0);
+        }
+      }
+    }
+    const withCapacity = items.map((t) => {
+      const reservedWeightKg = reservedByTrip.get(t.id) ?? 0;
+      const remainingWeightKg = Math.max(0, t.maxWeightKg - reservedWeightKg);
+      return { ...t, reservedWeightKg, remainingWeightKg };
+    });
     return {
-      items,
+      items: withCapacity,
       total,
       page,
       pageSize,
@@ -638,6 +661,13 @@ export class ParcelService {
     if (request.weightKg > trip.maxWeightKg) {
       throw new BadRequestException('Request weight exceeds trip capacity');
     }
+    const reservedWeightKg = await this.getReservedWeightKg(tripId);
+    const remainingKg = Math.max(0, trip.maxWeightKg - reservedWeightKg);
+    if (request.weightKg > remainingKg) {
+      throw new BadRequestException(
+        `Not enough capacity left on this trip (remaining ${remainingKg} kg)`,
+      );
+    }
     // Date check: Trip departure must be within request flexible window
     if (
       trip.departureDate < request.flexibleFromDate ||
@@ -829,7 +859,7 @@ export class ParcelService {
     });
     if (!request) throw new NotFoundException('Request not found');
 
-    return this.prisma.parcelTrip.findMany({
+    const trips = await this.prisma.parcelTrip.findMany({
       where: {
         status: 'active',
         fromCountry: request.fromCountry,
@@ -841,6 +871,31 @@ export class ParcelService {
         },
       },
     });
+    const tripIds = trips.map((t) => t.id);
+    const reservedByTrip = new Map<string, number>();
+    if (tripIds.length > 0) {
+      const reserved = await this.prisma.parcelRequest.groupBy({
+        by: ['tripId'],
+        where: {
+          tripId: { in: tripIds },
+          deletedAt: null,
+          status: { in: ['pending', 'matched'] },
+        },
+        _sum: { weightKg: true },
+      });
+      for (const row of reserved) {
+        if (row.tripId) {
+          reservedByTrip.set(row.tripId, row._sum.weightKg ?? 0);
+        }
+      }
+    }
+    return trips
+      .map((t) => {
+        const reservedWeightKg = reservedByTrip.get(t.id) ?? 0;
+        const remainingWeightKg = Math.max(0, t.maxWeightKg - reservedWeightKg);
+        return { ...t, reservedWeightKg, remainingWeightKg };
+      })
+      .filter((t) => t.remainingWeightKg >= request.weightKg);
   }
 
   async searchRequestsForTrip(tripId: string) {
@@ -945,5 +1000,21 @@ export class ParcelService {
         'Daily parcel posting limit reached (5 posts/day)',
       );
     }
+  }
+
+  private async getReservedWeightKg(tripId: string): Promise<number> {
+    const result = await this.prisma.parcelRequest.aggregate({
+      where: {
+        tripId,
+        deletedAt: null,
+        status: {
+          in: ['pending', 'matched'],
+        },
+      },
+      _sum: {
+        weightKg: true,
+      },
+    });
+    return result._sum.weightKg ?? 0;
   }
 }

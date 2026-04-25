@@ -1,4 +1,4 @@
-# Agent Suggestions for MuhajirOne
+# Agent Suggestions for MusafirOne
 
 ## Purpose
 

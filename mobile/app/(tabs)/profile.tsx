@@ -617,7 +617,7 @@ export default function ProfileScreen() {
             ) : null}
 
             <ThemedText style={styles.footerText}>
-              MuhajirOne v{appVersion} · Terms · Privacy
+              MusafirOne v{appVersion} · Terms · Privacy
             </ThemedText>
           </>
         ) : (

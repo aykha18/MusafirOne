@@ -1,10 +1,10 @@
-# MuhajirOne
+# MusafirOne
 
 A Cross-Border Peer Exchange Platform connecting verified expatriates for currency exchange and parcel delivery.
 
 ## Overview
 
-MuhajirOne is a mobile-first platform designed to help expatriates:
+MusafirOne is a mobile-first platform designed to help expatriates:
 1.  **Exchange Currency**: Find peers to exchange currency safely without middlemen.
 2.  **Send Parcels**: Connect with travelers to send parcels securely.
 3.  **Build Trust**: A robust trust system with verification levels and user ratings.

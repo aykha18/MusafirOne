@@ -1,8 +1,8 @@
-# MuhajirOne — Functional Test Cases
+# MusafirOne — Functional Test Cases
 
 ## Scope
 
-This document lists functional test cases for the MuhajirOne mobile app and admin flows:
+This document lists functional test cases for the MusafirOne mobile app and admin flows:
 
 - Authentication (OTP, Google)
 - Profile (edit City/Corridor, phone verification)

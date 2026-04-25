@@ -176,7 +176,7 @@ export default function OAuthRedirect() {
           return;
         }
 
-        setMessage('Signing into MuhajirOne…');
+        setMessage('Signing into MusafirOne…');
         await apiClient.googleLogin(idToken, 'demo-device');
         try {
           const profile = await apiClient.getMe();

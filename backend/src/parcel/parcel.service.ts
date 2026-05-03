@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { TrustService } from '../trust/trust.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ReferralsService } from '../referrals/referrals.service';
 import { CreateParcelTripDto } from './dto/create-parcel-trip.dto';
 import { UpdateParcelTripDto } from './dto/update-parcel-trip.dto';
 import { ListParcelTripsDto } from './dto/list-parcel-trips.dto';
@@ -20,6 +21,7 @@ export class ParcelService {
     private readonly prisma: PrismaService,
     private readonly trustService: TrustService,
     private readonly notificationsService: NotificationsService,
+    private readonly referralsService: ReferralsService,
   ) {}
 
   async createTrip(userId: string, dto: CreateParcelTripDto) {
@@ -848,6 +850,11 @@ export class ParcelService {
     await this.trustService.recalculateForUser(userId); // Request Owner
     if (request.trip?.userId) {
       await this.trustService.recalculateForUser(request.trip.userId); // Trip Owner
+    }
+
+    await this.referralsService.onCompletedTransaction(request.userId);
+    if (request.trip?.userId) {
+      await this.referralsService.onCompletedTransaction(request.trip.userId);
     }
 
     return updated;

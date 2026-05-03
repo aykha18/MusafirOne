@@ -3,6 +3,10 @@
   "rootDir": ".",
   "testEnvironment": "node",
   "testRegex": ".e2e-spec.ts$",
+  "maxWorkers": 1,
+  "moduleNameMapper": {
+    "^expo-server-sdk$": "<rootDir>/mocks/expo-server-sdk.ts"
+  },
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"
   }

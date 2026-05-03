@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { TrustService } from '../trust/trust.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ReferralsService } from '../referrals/referrals.service';
 import { CreateCurrencyPostDto } from './dto/create-currency-post.dto';
 import { UpdateCurrencyPostDto } from './dto/update-currency-post.dto';
 import { ListCurrencyPostsDto } from './dto/list-currency-posts.dto';
@@ -18,6 +19,7 @@ export class CurrencyService {
     private readonly prisma: PrismaService,
     private readonly trustService: TrustService,
     private readonly notificationsService: NotificationsService,
+    private readonly referralsService: ReferralsService,
   ) {}
 
   async createPost(userId: string, dto: CreateCurrencyPostDto) {
@@ -646,6 +648,9 @@ export class CurrencyService {
     // Trigger Trust Score update for both parties
     await this.trustService.recalculateForUser(request.requesterId);
     await this.trustService.recalculateForUser(request.targetUserId);
+
+    await this.referralsService.onCompletedTransaction(request.requesterId);
+    await this.referralsService.onCompletedTransaction(request.targetUserId);
 
     return result;
   }

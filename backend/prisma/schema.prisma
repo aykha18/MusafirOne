@@ -12,6 +12,7 @@ model User {
   phoneNumber        String                  @unique
   email              String?                 @unique
   googleId           String?                 @unique
+  referralCode       String?                 @unique
   fullName           String
   city               String
   corridor           String
@@ -38,12 +39,46 @@ model User {
   userDevices        UserDevice[]
   refreshTokens      RefreshToken[]
   stateChangeLogs    StateChangeLog[]       @relation("ChangedByUser")
+  referralsSent     Referral[]              @relation("ReferralReferrer")
+  referralReceived  Referral?               @relation("ReferralReferee")
+  referralRewards   ReferralReward[]
 
   // Chat Relations
   conversationsAsUser1 Conversation[]       @relation("User1Conversations")
   conversationsAsUser2 Conversation[]       @relation("User2Conversations")
   sentMessages         Message[]            @relation("SentMessages")
   pushTokens           PushToken[]
+}
+
+model Referral {
+  id         String         @id @default(uuid())
+  referrerId String
+  refereeId  String         @unique
+  status     ReferralStatus @default(pending)
+  createdAt  DateTime       @default(now())
+  rewardedAt DateTime?
+
+  referrer   User           @relation("ReferralReferrer", fields: [referrerId], references: [id])
+  referee    User           @relation("ReferralReferee", fields: [refereeId], references: [id])
+  rewards    ReferralReward[]
+
+  @@index([referrerId])
+}
+
+model ReferralReward {
+  id         String             @id @default(uuid())
+  referralId String
+  userId     String
+  type       ReferralRewardType
+  amountAed  Decimal            @db.Decimal(10, 2)
+  createdAt  DateTime           @default(now())
+
+  referral   Referral           @relation(fields: [referralId], references: [id])
+  user       User               @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([referralId])
+  @@unique([referralId, type])
 }
 
 model VerificationDocument {
@@ -332,6 +367,16 @@ enum DisputeStatus {
   under_review
   resolved_valid
   resolved_invalid
+}
+
+enum ReferralStatus {
+  pending
+  rewarded
+}
+
+enum ReferralRewardType {
+  referrer
+  referee
 }
 
 enum VerificationDocumentType {

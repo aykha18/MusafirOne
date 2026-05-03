@@ -23,6 +23,13 @@ export type MyStats = {
   community: number;
 };
 
+export type AdminDashboardStats = {
+  totalUsers: number;
+  activeDisputes: number;
+  totalParcels: number;
+  totalCurrencyPosts: number;
+};
+
 export type AuthTokens = {
   accessToken: string;
   refreshToken: string;
@@ -110,6 +117,23 @@ export type FeatureIdea = {
   voted: boolean;
   createdAt: string;
   updatedAt: string;
+};
+
+export type ReferralStatus = 'pending' | 'rewarded';
+
+export type ReferralMe = {
+  code: string;
+  stats: {
+    sent: number;
+    pending: number;
+    earnedAed: number;
+  };
+  received?: {
+    id: string;
+    status: ReferralStatus;
+    referrerId: string;
+    rewardedAt?: string | null;
+  } | null;
 };
 
 export type CreateCurrencyPostPayload = {
@@ -324,6 +348,10 @@ export class ApiClient {
       parcelRequests: number;
       totalPosts: number;
     }>(`/admin/dashboard/user-stats/${userId}`);
+  }
+
+  async getAdminDashboardStats() {
+    return this.get<AdminDashboardStats>('/admin/dashboard/stats');
   }
 
   async healthCheck(): Promise<boolean> {
@@ -600,6 +628,14 @@ export class ApiClient {
 
   async registerPushToken(token: string) {
     return this.post('/notifications/push-token', { token });
+  }
+
+  async getReferralMe() {
+    return this.get<ReferralMe>('/referrals/me');
+  }
+
+  async redeemReferral(code: string) {
+    return this.post('/referrals/redeem', { code });
   }
 
   private async get<TResponse = unknown>(

@@ -398,6 +398,157 @@ This document lists functional test cases for the MusafirOne mobile app and admi
 - Dispute created with status open/under_review
 - Admin can see it in disputes list
 
+## CUR-10 — Browse Posts + Filters (Have/Need/City)
+
+**Preconditions**
+- User A has an active post
+
+**Steps**
+1. User B opens Currency tab
+2. Set filters (Have, Need, City)
+3. Clear filters
+
+**Expected**
+- Filtered list shows only matching posts
+- Clearing filters returns to full list
+- Empty state is shown when no results match
+
+## CUR-11 — View Post Details
+
+**Steps**
+1. Open a post from the list
+
+**Expected**
+- Post details match the list values (have/need, amount, rate, city)
+- Owner info/trust indicators (if shown) are visible
+
+## CUR-12 — Request Match: Prevent Requesting Own Post
+
+**Preconditions**
+- User A created the post
+
+**Steps**
+1. User A opens their own post from browse list
+2. Attempt to request a match
+
+**Expected**
+- UI prevents the action (or backend rejects)
+- Clear message shown (cannot request your own post)
+
+## CUR-13 — Request Match: Prevent Duplicate Pending Requests
+
+**Preconditions**
+- CUR-04 completed (a pending request exists)
+
+**Steps**
+1. User B tries to request a match again on the same post
+
+**Expected**
+- Duplicate request is blocked (UI or backend)
+- User B is directed to existing request/thread
+
+## CUR-14 — Cancel Sent Match Request (Requester)
+
+**Preconditions**
+- User B has a pending sent request
+
+**Steps**
+1. User B opens Currency → My Requests
+2. Cancel the pending request
+
+**Expected**
+- Status becomes cancelled for both users
+- Request no longer appears as actionable
+
+## CUR-15 — Post Owner Cancels Post With Pending Requests
+
+**Preconditions**
+- User A has an active post
+- At least one pending request exists for the post
+
+**Steps**
+1. User A cancels the post
+2. User B refreshes My Requests
+
+**Expected**
+- Post becomes cancelled/inactive
+- Pending requests are cancelled/rejected automatically (as per system rules)
+- Users see a clear state in UI
+
+## CUR-16 — Accept Flow: Both Users See Consistent Status
+
+**Preconditions**
+- CUR-05 completed
+
+**Steps**
+1. User A refreshes Currency screens
+2. User B refreshes Currency screens
+
+**Expected**
+- Both users see the same accepted status
+- Chat entry point is available (if chat is gated to accepted)
+
+## CUR-17 — Complete Match Rules + Idempotency
+
+**Preconditions**
+- Request accepted
+
+**Steps**
+1. Complete the match from the UI
+2. Refresh both users’ screens
+3. Attempt to complete again
+
+**Expected**
+- Status becomes completed once
+- Second completion attempt is blocked or no-ops safely
+
+## CUR-18 — Rating Rules
+
+**Preconditions**
+- Match is completed
+
+**Steps**
+1. Submit rating
+2. Attempt to submit rating again
+
+**Expected**
+- Rating is stored successfully the first time
+- Duplicate rating is blocked
+
+## CUR-19 — Dispute Rules
+
+**Steps**
+1. Try to raise a dispute on a pending request
+2. Raise a dispute on an accepted or completed request
+
+**Expected**
+- Pending requests cannot be disputed
+- Accepted/completed requests can be disputed and show correct status
+
+## CUR-20 — Live “Today’s Rate” Display (You Send / They Receive)
+
+**Steps**
+1. Currency screen: set You Send and They Receive currencies
+2. Observe Today’s rate and timestamp
+3. Toggle to a different pair
+
+**Expected**
+- Today’s rate loads for the selected pair
+- Loading and failure states are handled (shows unavailable when endpoint fails)
+
+## CUR-21 — Suspended User Restrictions (Admin)
+
+**Preconditions**
+- Admin can suspend users
+
+**Steps**
+1. Admin suspends User B
+2. User B tries: create post, request match, accept/reject, chat
+
+**Expected**
+- Restricted actions are blocked
+- Clear error shown and state remains unchanged
+
 ---
 
 # 6) Parcel Delivery
@@ -514,6 +665,169 @@ This document lists functional test cases for the MusafirOne mobile app and admi
 **Expected**
 - Dispute created and visible to admin
 
+## PAR-10 — Browse Trips (Public / Logged Out)
+
+**Preconditions**
+- At least one active trip exists
+
+**Steps**
+1. Log out
+2. Open Parcel tab
+3. Browse available trips
+
+**Expected**
+- Trips list loads without requiring login
+- Traveler name/trust badge (if shown) renders
+
+## PAR-11 — Logged Out: Request This Traveler Requires Login
+
+**Steps**
+1. While logged out, tap “Request This Traveler”
+
+**Expected**
+- User is prompted to log in
+- No request is created
+
+## PAR-12 — Request This Traveler: Create Request With Details
+
+**Preconditions**
+- Logged in as Parcel Sender (User B)
+
+**Steps**
+1. Browse trips
+2. Tap “Request This Traveler”
+3. Choose item type, enter description, weight, declared value
+4. Submit
+
+**Expected**
+- Request is created and tied to the selected trip
+- Request status becomes pending (or matched/pending per rules)
+- Sender can see the request in their activity
+
+## PAR-13 — Traveler Sees Incoming Requests (Trip Owner)
+
+**Preconditions**
+- PAR-12 completed
+
+**Steps**
+1. Log in as the traveler who owns the trip (User A)
+2. Open Parcel → My Trips
+3. Open the trip card/details
+
+**Expected**
+- Incoming request appears with sender identity
+- Request details (item type/description/weight/value) are visible
+
+## PAR-14 — Traveler Accepts Request
+
+**Preconditions**
+- Incoming request exists
+
+**Steps**
+1. Traveler accepts the request
+2. Sender refreshes
+
+**Expected**
+- Status becomes accepted/matched for both users
+- Chat entry point is available (if chat is gated to accepted)
+
+## PAR-15 — Traveler Rejects Request (Capacity Restores)
+
+**Preconditions**
+- Trip has limited capacity
+- A pending request exists
+
+**Steps**
+1. Traveler rejects the request
+2. Sender refreshes
+3. Observe trip remaining capacity
+
+**Expected**
+- Request status becomes rejected
+- Remaining capacity returns/increases accordingly
+
+## PAR-16 — Capacity Enforcement: Prevent Oversubscription
+
+**Preconditions**
+- Trip max weight is small (e.g., 4kg)
+- At least one pending/accepted request reserves capacity
+
+**Steps**
+1. Sender attempts to request weight greater than remaining capacity
+
+**Expected**
+- UI blocks the submission or backend rejects with a clear error
+- No request is created/updated
+
+## PAR-17 — Cannot Request Own Trip
+
+**Steps**
+1. Trip owner tries “Request This Traveler” on their own trip
+
+**Expected**
+- Action is blocked with a clear error
+
+## PAR-18 — Trip Not Active / Past Departure
+
+**Preconditions**
+- Trip is not active or departure date is in the past
+
+**Steps**
+1. Attempt to request that trip
+
+**Expected**
+- Action is blocked (UI or backend)
+- Clear error shown
+
+## PAR-19 — Route/Date Compatibility Rules
+
+**Preconditions**
+- Create requests/trips with mismatched routes or non-overlapping date windows
+
+**Steps**
+1. Attempt to match/request traveler anyway
+
+**Expected**
+- Incompatible matches are not offered or are rejected
+
+## PAR-20 — Multiple Senders Competing for Capacity
+
+**Preconditions**
+- Trip max weight set
+- User B requests some weight
+- User C requests remaining weight
+
+**Steps**
+1. Traveler accepts one request
+2. Traveler accepts another request until capacity is full
+
+**Expected**
+- Acceptance is blocked once capacity is exhausted
+- UI shows “Full” / remaining 0kg
+
+## PAR-21 — Sender Cancels Pending Parcel Request
+
+**Preconditions**
+- Sender has a pending request
+
+**Steps**
+1. Sender cancels the request
+2. Traveler refreshes
+
+**Expected**
+- Status becomes cancelled
+- Remaining capacity restores
+
+## PAR-22 — Parcel Notifications (If Push Enabled)
+
+**Steps**
+1. Sender creates a request
+2. Traveler accepts/rejects
+
+**Expected**
+- Traveler receives “new incoming request” notification
+- Sender receives accept/reject notification
+
 ---
 
 # 7) Admin Dashboard
@@ -592,8 +906,10 @@ Run these quickly after each build:
 - AUTH-02 (OTP login) or AUTH-04 (Google login)
 - PROF-02 (edit city/corridor)
 - EXP-02 (upvote)
-- CUR-01 + CUR-02 (create + edit currency post)
-- PAR-01 + PAR-02 (create + edit trip)
+- CUR-01 + CUR-04 + CUR-05 (create post + request match + accept)
+- CUR-17 + CUR-18 (complete + rate)
+- PAR-10 + PAR-12 + PAR-13 (public browse trips + request traveler + traveler sees incoming)
+- PAR-14 + PAR-16 (accept + capacity enforcement)
 - CHAT-02 (dark mode message visibility)
 - VDOC-01 (upload doc) + VDOC-05 (admin approve)
 

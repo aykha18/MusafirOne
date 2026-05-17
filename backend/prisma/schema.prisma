@@ -36,6 +36,7 @@ model User {
   verificationDocuments VerificationDocument[]
   reviewedVerificationDocuments VerificationDocument[] @relation("VerificationDocumentsReviewedBy")
   featureVotes      FeatureVote[]
+  featureIdeasSubmitted FeatureIdea[]        @relation("FeatureIdeaSubmittedBy")
   userDevices        UserDevice[]
   refreshTokens      RefreshToken[]
   stateChangeLogs    StateChangeLog[]       @relation("ChangedByUser")
@@ -109,10 +110,14 @@ model FeatureIdea {
   shortDescription String
   longDescription  String
   isActive         Boolean       @default(true)
+  submittedByUserId String?
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
+  submittedBy      User?         @relation("FeatureIdeaSubmittedBy", fields: [submittedByUserId], references: [id])
   votes            FeatureVote[]
+
+  @@index([submittedByUserId])
 }
 
 model FeatureVote {

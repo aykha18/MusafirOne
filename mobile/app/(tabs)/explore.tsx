@@ -2,9 +2,14 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
-import { apiClient, type FeatureIdea } from '@/api/client';
+import {
+  apiClient,
+  type CreateFeatureIdeaPayload,
+  type FeatureIdea,
+} from '@/api/client';
 import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedButton } from '@/components/themed-button';
+import { ThemedInput } from '@/components/themed-input';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -15,6 +20,14 @@ export default function ExploreScreen() {
   const [features, setFeatures] = useState<FeatureIdea[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showSubmit, setShowSubmit] = useState(false);
+  const [submitBusy, setSubmitBusy] = useState(false);
+  const [submitDone, setSubmitDone] = useState<string | null>(null);
+  const [idea, setIdea] = useState<CreateFeatureIdeaPayload>({
+    title: '',
+    shortDescription: '',
+    longDescription: '',
+  });
 
   const load = async () => {
     setLoading(true);
@@ -32,6 +45,31 @@ export default function ExploreScreen() {
   useEffect(() => {
     load();
   }, []);
+
+  const handleSubmitIdea = async () => {
+    setSubmitDone(null);
+    setError(null);
+    const title = idea.title.trim();
+    const shortDescription = idea.shortDescription.trim();
+    const longDescription = idea.longDescription?.trim();
+    if (!title || !shortDescription) return;
+
+    setSubmitBusy(true);
+    try {
+      await apiClient.submitFeatureIdea({
+        title,
+        shortDescription,
+        longDescription: longDescription || undefined,
+      });
+      setIdea({ title: '', shortDescription: '', longDescription: '' });
+      setShowSubmit(false);
+      setSubmitDone('Submitted for review. Once approved, it will appear here for votes.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSubmitBusy(false);
+    }
+  };
 
   const handleToggleVote = async (slug: string) => {
     setFeatures((prev) =>
@@ -86,10 +124,50 @@ export default function ExploreScreen() {
 
       <ThemedView style={styles.actionsRow}>
         <ThemedButton title="Refresh" variant="secondary" onPress={load} disabled={loading} />
+        <ThemedButton
+          title={showSubmit ? 'Close' : 'Submit idea'}
+          variant="secondary"
+          onPress={() => {
+            setSubmitDone(null);
+            setShowSubmit((v) => !v);
+          }}
+        />
       </ThemedView>
+
+      {submitDone ? <ThemedText style={styles.successText}>{submitDone}</ThemedText> : null}
 
       {error ? (
         <ThemedText style={styles.errorText}>{error}</ThemedText>
+      ) : null}
+
+      {showSubmit ? (
+        <ThemedView style={styles.submitCard}>
+          <ThemedText type="defaultSemiBold">Submit a feature idea</ThemedText>
+          <ThemedInput
+            placeholder="Title"
+            value={idea.title}
+            onChangeText={(t) => setIdea((p) => ({ ...p, title: t }))}
+          />
+          <ThemedInput
+            placeholder="Short description"
+            value={idea.shortDescription}
+            onChangeText={(t) => setIdea((p) => ({ ...p, shortDescription: t }))}
+          />
+          <ThemedInput
+            placeholder="Details (optional)"
+            value={idea.longDescription ?? ''}
+            onChangeText={(t) => setIdea((p) => ({ ...p, longDescription: t }))}
+            multiline
+            numberOfLines={4}
+          />
+          <ThemedButton
+            title={submitBusy ? 'Submitting...' : 'Submit'}
+            onPress={handleSubmitIdea}
+            disabled={
+              submitBusy || !idea.title.trim() || !idea.shortDescription.trim()
+            }
+          />
+        </ThemedView>
       ) : null}
 
       {loading ? (
@@ -152,7 +230,21 @@ const styles = StyleSheet.create({
     marginTop: 12,
     marginBottom: 8,
     flexDirection: 'row',
+    gap: 10,
     justifyContent: 'flex-start',
+  },
+  submitCard: {
+    marginTop: 8,
+    marginBottom: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#999',
+    borderRadius: 12,
+    padding: 12,
+    gap: 10,
+  },
+  successText: {
+    marginBottom: 8,
+    color: '#0a7a2f',
   },
   errorText: {
     marginBottom: 8,

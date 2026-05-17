@@ -119,6 +119,12 @@ export type FeatureIdea = {
   updatedAt: string;
 };
 
+export type CreateFeatureIdeaPayload = {
+  title: string;
+  shortDescription: string;
+  longDescription?: string;
+};
+
 export type ReferralStatus = 'pending' | 'rewarded';
 
 export type ReferralMe = {
@@ -604,6 +610,10 @@ export class ApiClient {
       `/features/${slug}/vote`,
       undefined,
     );
+  }
+
+  async submitFeatureIdea(payload: CreateFeatureIdeaPayload) {
+    return this.post<FeatureIdea & { status: 'pending' }>('/features', payload);
   }
 
   async getConversations() {

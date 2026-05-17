@@ -11,6 +11,73 @@ import {
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 
+const featureIdeas = [
+  {
+    slug: 'co-passenger',
+    title: 'Co-Passenger',
+    shortDescription:
+      'Find a companion to assist elderly/child passengers on the same route.',
+    longDescription:
+      'Co-Passenger helps elderly travelers, children, and first-time flyers travel with confidence.\n\nType A: Shared-route companion — a traveler who is already flying posts their itinerary. A passenger needing assistance can connect and coordinate.\n\nType B: Paid companion — the passenger needing assistance pays for the companion’s tickets (to/from) plus an agreed service charge.\n\nSafety ideas: require stronger verification for companions, show trust score/ratings, add chat + itinerary confirmation, and support reporting/disputes.',
+  },
+  {
+    slug: 'airport-pickup-drop',
+    title: 'Airport Pickup & Drop',
+    shortDescription:
+      'Coordinate pickups/drops with trusted community members and transparent pricing.',
+    longDescription:
+      'Match travelers arriving/departing with verified drivers/helpers. Useful for late-night arrivals, new expats, and families with luggage. Include pickup point, baggage count, and optional child seat requirement.',
+  },
+  {
+    slug: 'shared-luggage-space',
+    title: 'Shared Luggage Space',
+    shortDescription:
+      'Share spare luggage allowance safely (no prohibited items, clear rules).',
+    longDescription:
+      'Let travelers with spare baggage allowance connect with people needing extra baggage space. Emphasize strict item restrictions, required receipts, and verification to reduce risk.',
+  },
+  {
+    slug: 'document-checklist',
+    title: 'Travel Document Checklist',
+    shortDescription:
+      'Personalized checklist for visas, permits, insurance, and arrival requirements.',
+    longDescription:
+      'A corridor-based checklist (origin/destination) that helps expats prepare the right documents. Include reminders and links to official sources.',
+  },
+  {
+    slug: 'scam-alerts',
+    title: 'Scam & Safety Alerts',
+    shortDescription:
+      'Community-reported scam patterns and safety tips for new arrivals.',
+    longDescription:
+      'Crowdsource verified scam alerts (with moderation). Show common red flags for currency exchange, parcel handling, or pickup scams.',
+  },
+  {
+    slug: 'trusted-services',
+    title: 'Trusted Services Directory',
+    shortDescription:
+      'Community-rated services: SIM cards, remittance, housing help, and more.',
+    longDescription:
+      'A curated directory for expats with ratings and dispute handling. Good for onboarding in a new city/corridor.',
+  },
+  {
+    slug: 'trip-buddy',
+    title: 'Trip Buddy (Same Flight/Route)',
+    shortDescription:
+      'Meet someone on the same flight/route to travel together or share taxis.',
+    longDescription:
+      'Helps reduce travel anxiety, enables shared transport on arrival, and supports first-time travelers. Similar to Co-Passenger but focused on peer companionship rather than assistance service.',
+  },
+  {
+    slug: 'arrival-support',
+    title: 'Arrival Support',
+    shortDescription:
+      'Help with first-day essentials: directions, local SIM, transit, and setup.',
+    longDescription:
+      'Connect new arrivals with locals/expats who can guide them through airport processes and initial city navigation. Include time-boxed sessions and clear pricing if paid.',
+  },
+];
+
 function loadEnv() {
   const envPath = path.join(__dirname, '..', '..', '.env');
   if (fs.existsSync(envPath)) {
@@ -47,8 +114,36 @@ function getPrisma(): PrismaClient {
   return new PrismaClient({ adapter });
 }
 
+async function seedFeatureIdeas(prisma: PrismaClient) {
+  for (const f of featureIdeas) {
+    await prisma.featureIdea.upsert({
+      where: { slug: f.slug },
+      update: {
+        title: f.title,
+        shortDescription: f.shortDescription,
+        longDescription: f.longDescription,
+        isActive: true,
+      },
+      create: {
+        slug: f.slug,
+        title: f.title,
+        shortDescription: f.shortDescription,
+        longDescription: f.longDescription,
+        isActive: true,
+      },
+    });
+  }
+}
+
 async function main() {
   const prisma = getPrisma();
+
+  if (process.env.SEED_FEATURE_IDEAS_ONLY === '1') {
+    await seedFeatureIdeas(prisma);
+    await prisma.$disconnect();
+    process.stdout.write('Seed complete\n');
+    return;
+  }
 
   const users = [
     {
@@ -690,91 +785,7 @@ async function main() {
     });
   }
 
-  const featureIdeas = [
-    {
-      slug: 'co-passenger',
-      title: 'Co-Passenger',
-      shortDescription:
-        'Find a companion to assist elderly/child passengers on the same route.',
-      longDescription:
-        'Co-Passenger helps elderly travelers, children, and first-time flyers travel with confidence.\n\nType A: Shared-route companion — a traveler who is already flying posts their itinerary. A passenger needing assistance can connect and coordinate.\n\nType B: Paid companion — the passenger needing assistance pays for the companion’s tickets (to/from) plus an agreed service charge.\n\nSafety ideas: require stronger verification for companions, show trust score/ratings, add chat + itinerary confirmation, and support reporting/disputes.',
-    },
-    {
-      slug: 'airport-pickup-drop',
-      title: 'Airport Pickup & Drop',
-      shortDescription:
-        'Coordinate pickups/drops with trusted community members and transparent pricing.',
-      longDescription:
-        'Match travelers arriving/departing with verified drivers/helpers. Useful for late-night arrivals, new expats, and families with luggage. Include pickup point, baggage count, and optional child seat requirement.',
-    },
-    {
-      slug: 'shared-luggage-space',
-      title: 'Shared Luggage Space',
-      shortDescription:
-        'Share spare luggage allowance safely (no prohibited items, clear rules).',
-      longDescription:
-        'Let travelers with spare baggage allowance connect with people needing extra baggage space. Emphasize strict item restrictions, required receipts, and verification to reduce risk.',
-    },
-    {
-      slug: 'document-checklist',
-      title: 'Travel Document Checklist',
-      shortDescription:
-        'Personalized checklist for visas, permits, insurance, and arrival requirements.',
-      longDescription:
-        'A corridor-based checklist (origin/destination) that helps expats prepare the right documents. Include reminders and links to official sources.',
-    },
-    {
-      slug: 'scam-alerts',
-      title: 'Scam & Safety Alerts',
-      shortDescription:
-        'Community-reported scam patterns and safety tips for new arrivals.',
-      longDescription:
-        'Crowdsource verified scam alerts (with moderation). Show common red flags for currency exchange, parcel handling, or pickup scams.',
-    },
-    {
-      slug: 'trusted-services',
-      title: 'Trusted Services Directory',
-      shortDescription:
-        'Community-rated services: SIM cards, remittance, housing help, and more.',
-      longDescription:
-        'A curated directory for expats with ratings and dispute handling. Good for onboarding in a new city/corridor.',
-    },
-    {
-      slug: 'trip-buddy',
-      title: 'Trip Buddy (Same Flight/Route)',
-      shortDescription:
-        'Meet someone on the same flight/route to travel together or share taxis.',
-      longDescription:
-        'Helps reduce travel anxiety, enables shared transport on arrival, and supports first-time travelers. Similar to Co-Passenger but focused on peer companionship rather than assistance service.',
-    },
-    {
-      slug: 'arrival-support',
-      title: 'Arrival Support',
-      shortDescription:
-        'Help with first-day essentials: directions, local SIM, transit, and setup.',
-      longDescription:
-        'Connect new arrivals with locals/expats who can guide them through airport processes and initial city navigation. Include time-boxed sessions and clear pricing if paid.',
-    },
-  ];
-
-  for (const f of featureIdeas) {
-    await prisma.featureIdea.upsert({
-      where: { slug: f.slug },
-      update: {
-        title: f.title,
-        shortDescription: f.shortDescription,
-        longDescription: f.longDescription,
-        isActive: true,
-      },
-      create: {
-        slug: f.slug,
-        title: f.title,
-        shortDescription: f.shortDescription,
-        longDescription: f.longDescription,
-        isActive: true,
-      },
-    });
-  }
+  await seedFeatureIdeas(prisma);
 
   await prisma.$disconnect();
   process.stdout.write('Seed complete\n');

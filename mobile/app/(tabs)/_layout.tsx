@@ -1,6 +1,7 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
 import { Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -10,7 +11,11 @@ import { usePushNotifications } from '@/hooks/use-push-notifications';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+  const insets = useSafeAreaInsets();
   usePushNotifications();
+
+  const tabBarBottom =
+    Platform.OS === 'ios' ? 18 : 12 + Math.max(insets.bottom, 24);
 
   return (
     <Tabs
@@ -28,7 +33,7 @@ export default function TabLayout() {
           position: 'absolute',
           left: 16,
           right: 16,
-          bottom: Platform.OS === 'ios' ? 18 : 12,
+          bottom: tabBarBottom,
           borderRadius: 18,
           ...Platform.select({
             ios: {

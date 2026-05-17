@@ -1,6 +1,17 @@
-import { StyleSheet, FlatList, TextInput, KeyboardAvoidingView, Platform, View, TouchableOpacity, ActivityIndicator } from 'react-native';
+import {
+  StyleSheet,
+  FlatList,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  View,
+  TouchableOpacity,
+  ActivityIndicator,
+} from 'react-native';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
 import { useState, useEffect, useRef } from 'react';
+import { useHeaderHeight } from '@react-navigation/elements';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { apiClient, Message, Conversation } from '@/api/client';
@@ -18,6 +29,8 @@ export default function ChatScreen() {
   const conversationId = Array.isArray(id) ? id[0] : id;
   const navigation = useNavigation();
   const colorScheme = useColorScheme();
+  const headerHeight = useHeaderHeight();
+  const insets = useSafeAreaInsets();
   
   const [messages, setMessages] = useState<Message[]>([]);
   const [conversation, setConversation] = useState<Conversation | null>(null);
@@ -121,8 +134,8 @@ export default function ChatScreen() {
   return (
     <KeyboardAvoidingView 
       style={styles.container} 
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={headerHeight}
     >
       <ThemedView style={styles.container}>
         {conversation?.matchRequest?.currencyPost && (
@@ -147,7 +160,15 @@ export default function ChatScreen() {
           inverted
           contentContainerStyle={styles.listContent}
         />
-        <View style={[styles.inputContainer, { borderTopColor: Colors[colorScheme ?? 'light'].icon }]}>
+        <View
+          style={[
+            styles.inputContainer,
+            {
+              borderTopColor: Colors[colorScheme ?? 'light'].icon,
+              paddingBottom: 12 + insets.bottom,
+            },
+          ]}
+        >
           <TextInput
             style={[styles.input, { color: Colors[colorScheme ?? 'light'].text, borderColor: Colors[colorScheme ?? 'light'].icon }]}
             value={inputText}

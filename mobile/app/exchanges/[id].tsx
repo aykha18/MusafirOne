@@ -58,6 +58,8 @@ export default function ExchangeDetailScreen() {
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [favoriteBusy, setFavoriteBusy] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(false);
 
   const [confirming, setConfirming] = useState(false);
   const [confirmAmount, setConfirmAmount] = useState(amt);
@@ -88,6 +90,13 @@ export default function ExchangeDetailScreen() {
       navigation.setOptions({ title: res?.name ?? 'Exchange' });
       const firstBranchId = res?.branches?.[0]?.id;
       setSelectedBranchId(firstBranchId ?? null);
+
+      try {
+        const favs = await apiClient.listFavoriteExchanges();
+        setIsFavorite(Array.isArray(favs) && favs.some((f) => f.id === String(businessId)));
+      } catch {
+        setIsFavorite(false);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -187,6 +196,24 @@ export default function ExchangeDetailScreen() {
     }
   };
 
+  const toggleFavorite = async () => {
+    if (!businessId) return;
+    setFavoriteBusy(true);
+    try {
+      if (isFavorite) {
+        await apiClient.removeFavoriteExchange(String(businessId));
+        setIsFavorite(false);
+      } else {
+        await apiClient.addFavoriteExchange(String(businessId));
+        setIsFavorite(true);
+      }
+    } catch (e) {
+      Alert.alert('Error', e instanceof Error ? e.message : String(e));
+    } finally {
+      setFavoriteBusy(false);
+    }
+  };
+
   return (
     <ParallaxScrollView headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }} headerImage={null}>
       {busy && !business ? (
@@ -210,6 +237,21 @@ export default function ExchangeDetailScreen() {
               <ThemedButton title="Call" variant="secondary" onPress={openPhone} />
               <ThemedButton title="WhatsApp" variant="secondary" onPress={openWhatsApp} />
               <ThemedButton title="Directions" variant="secondary" onPress={openDirections} />
+            </View>
+            <View style={{ marginTop: 10 }}>
+              <ThemedButton
+                title={
+                  favoriteBusy
+                    ? 'Saving...'
+                    : isFavorite
+                      ? 'Remove Favorite'
+                      : 'Add to Favorites'
+                }
+                variant="secondary"
+                onPress={toggleFavorite}
+                disabled={favoriteBusy}
+                fullWidth
+              />
             </View>
           </AppCard>
 

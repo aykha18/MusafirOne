@@ -49,6 +49,16 @@ export type ExchangeListItem = {
   openNow: boolean | null;
 };
 
+export type FavoriteExchange = {
+  id: string;
+  name: string;
+  isVerified: boolean;
+  status: 'pending' | 'active' | 'rejected';
+  city: string;
+  address: string;
+  favoritedAt: string;
+};
+
 export type ExchangesListResponse = {
   items: ExchangeListItem[];
   query: {
@@ -769,6 +779,18 @@ export class ApiClient {
     },
   ) {
     return this.post(`/exchanges/${businessId}/reviews`, payload);
+  }
+
+  async listFavoriteExchanges() {
+    return this.get<FavoriteExchange[]>('/me/favorites/exchanges');
+  }
+
+  async addFavoriteExchange(businessId: string) {
+    return this.post(`/me/favorites/exchanges/${businessId}`, {});
+  }
+
+  async removeFavoriteExchange(businessId: string) {
+    return this.delete(`/me/favorites/exchanges/${businessId}`);
   }
 
   async listMyBusinesses() {

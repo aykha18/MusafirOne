@@ -40,6 +40,12 @@ type ExchangeListItem = {
 export class ExchangesService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private getReviewCooldownDays() {
+    const raw = Number(process.env.REVIEW_COOLDOWN_DAYS ?? 30);
+    if (!Number.isFinite(raw) || raw <= 0) return 30;
+    return raw;
+  }
+
   private getOfferStaleHours() {
     const raw = Number(process.env.OFFER_STALE_HOURS ?? 12);
     if (!Number.isFinite(raw) || raw <= 0) return 12;
@@ -489,6 +495,21 @@ export class ExchangesService {
       throw new NotFoundException('Business not found');
     }
 
+    const cooldownDays = this.getReviewCooldownDays();
+    const cutoff = new Date(Date.now() - cooldownDays * 24 * 60 * 60 * 1000);
+    const recentCount = await this.prisma.businessReview.count({
+      where: {
+        userId,
+        businessId,
+        createdAt: { gte: cutoff },
+      },
+    });
+    if (recentCount > 0) {
+      throw new BadRequestException(
+        `You can review this business once every ${cooldownDays} days`,
+      );
+    }
+
     const confirmation = await this.prisma.exchangeConfirmation.findUnique({
       where: { id: dto.confirmationId },
       include: { branch: true },
@@ -856,6 +877,62 @@ export class ExchangesService {
       where: { id },
       data: { isHidden },
     });
+  }
+
+  async listExchangeFavorites(userId: string) {
+    const favorites = await this.prisma.exchangeFavorite.findMany({
+      where: { userId },
+      orderBy: [{ createdAt: 'desc' }],
+      take: 200,
+      include: {
+        business: {
+          include: {
+            branches: {
+              where: { isActive: true },
+              take: 1,
+              orderBy: [{ createdAt: 'asc' }],
+            },
+          },
+        },
+      },
+    });
+    return favorites
+      .filter((f) => f.business.status === 'active' && f.business.type === 'exchange')
+      .map((f) => {
+        const branch = f.business.branches[0] ?? null;
+        return {
+          id: f.business.id,
+          name: f.business.name,
+          isVerified: f.business.isVerified,
+          status: f.business.status,
+          city: branch?.city ?? '',
+          address: branch?.address ?? '',
+          favoritedAt: f.createdAt,
+        };
+      });
+  }
+
+  async addExchangeFavorite(userId: string, businessId: string) {
+    const business = await this.prisma.business.findUnique({
+      where: { id: businessId },
+      select: { id: true, status: true, type: true },
+    });
+    if (!business || business.status !== 'active' || business.type !== 'exchange') {
+      throw new NotFoundException('Business not found');
+    }
+    await this.prisma.exchangeFavorite.upsert({
+      where: { userId_businessId: { userId, businessId } },
+      update: {},
+      create: { userId, businessId },
+    });
+    return { ok: true as const, favorited: true as const };
+  }
+
+  async removeExchangeFavorite(userId: string, businessId: string) {
+    await this.prisma.exchangeFavorite.deleteMany({
+      where: { userId, businessId },
+    });
+    return { ok: true as const, favorited: false as const };
   }
 
   async adminListBusinesses(status?: string, type?: string) {

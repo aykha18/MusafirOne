@@ -208,3 +208,27 @@ export class AdminReviewsController {
     return this.exchangesService.adminSetReviewHidden(id, dto.isHidden);
   }
 }
+
+@UseGuards(AuthGuard('jwt'))
+@Controller('me/favorites/exchanges')
+export class MeExchangeFavoritesController {
+  constructor(private readonly exchangesService: ExchangesService) {}
+
+  @Get()
+  list(@Req() req: AuthenticatedRequest) {
+    return this.exchangesService.listExchangeFavorites(req.user.id);
+  }
+
+  @Post(':businessId')
+  add(@Req() req: AuthenticatedRequest, @Param('businessId') businessId: string) {
+    return this.exchangesService.addExchangeFavorite(req.user.id, businessId);
+  }
+
+  @Delete(':businessId')
+  remove(
+    @Req() req: AuthenticatedRequest,
+    @Param('businessId') businessId: string,
+  ) {
+    return this.exchangesService.removeExchangeFavorite(req.user.id, businessId);
+  }
+}

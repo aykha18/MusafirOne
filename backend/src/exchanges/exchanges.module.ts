@@ -5,6 +5,7 @@ import {
   AdminReviewsController,
   BusinessesController,
   ExchangesController,
+  MeExchangeFavoritesController,
 } from './exchanges.controller';
 import { ExchangesService } from './exchanges.service';
 
@@ -15,6 +16,7 @@ import { ExchangesService } from './exchanges.service';
     AdminBusinessesController,
     BusinessesController,
     AdminReviewsController,
+    MeExchangeFavoritesController,
   ],
   providers: [ExchangesService],
   exports: [ExchangesService],

@@ -516,6 +516,15 @@ export default function ProfileScreen() {
                 <IconSymbol name="chevron.right" size={18} color={Colors[colorScheme ?? 'light'].icon} />
               </Pressable>
               <View style={[styles.menuDivider, { backgroundColor: Colors[colorScheme ?? 'light'].border }]} />
+              <Pressable onPress={() => router.push('/favorites/exchanges')} style={styles.menuRow}>
+                <View style={[styles.menuIcon, { backgroundColor: 'rgba(255, 204, 0, 0.14)' }]}>
+                  <IconSymbol name="star.fill" size={18} color="#FFCC00" />
+                </View>
+                <ThemedText type="defaultSemiBold" style={styles.menuLabel}>Favorite Exchanges</ThemedText>
+                <View style={{ flex: 1 }} />
+                <IconSymbol name="chevron.right" size={18} color={Colors[colorScheme ?? 'light'].icon} />
+              </Pressable>
+              <View style={[styles.menuDivider, { backgroundColor: Colors[colorScheme ?? 'light'].border }]} />
               <Pressable onPress={() => router.push('/referral')} style={styles.menuRow}>
                 <View style={[styles.menuIcon, { backgroundColor: 'rgba(255, 45, 85, 0.12)' }]}>
                   <IconSymbol name="gift" size={18} color="#FF2D55" />

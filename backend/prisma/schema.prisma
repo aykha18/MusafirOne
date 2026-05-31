@@ -41,6 +41,7 @@ model User {
   exchangeLeads     ExchangeLead[]
   exchangeConfirmations ExchangeConfirmation[]
   businessReviews   BusinessReview[]
+  exchangeFavorites ExchangeFavorite[]
   userDevices        UserDevice[]
   refreshTokens      RefreshToken[]
   stateChangeLogs    StateChangeLog[]       @relation("ChangedByUser")
@@ -156,6 +157,7 @@ model Business {
   owner      User?          @relation(fields: [ownerUserId], references: [id])
   branches   BusinessBranch[]
   reviews    BusinessReview[]
+  favorites  ExchangeFavorite[]
 
   @@index([status])
   @@index([type])
@@ -269,6 +271,21 @@ model BusinessReview {
   @@index([userId])
   @@index([businessId])
   @@index([branchId])
+  @@index([createdAt])
+}
+
+model ExchangeFavorite {
+  id         String   @id @default(uuid())
+  userId     String
+  businessId String
+  createdAt  DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id])
+  business   Business @relation(fields: [businessId], references: [id])
+
+  @@unique([userId, businessId])
+  @@index([userId])
+  @@index([businessId])
   @@index([createdAt])
 }
 

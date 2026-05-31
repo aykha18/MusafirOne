@@ -61,6 +61,34 @@ export type ExchangesListResponse = {
   };
 };
 
+export type BusinessType = 'exchange' | 'umrah';
+export type BusinessStatus = 'pending' | 'active' | 'rejected';
+
+export type MyBusiness = {
+  id: string;
+  ownerUserId?: string | null;
+  type: BusinessType;
+  name: string;
+  description?: string | null;
+  phone?: string | null;
+  whatsapp?: string | null;
+  website?: string | null;
+  status: BusinessStatus;
+  isVerified: boolean;
+  trialEndsAt?: string | null;
+  branches: Array<{
+    id: string;
+    businessId: string;
+    city: string;
+    address: string;
+    lat?: number | null;
+    lng?: number | null;
+    timeZone?: string | null;
+    hoursJson?: string | null;
+    isActive: boolean;
+  }>;
+};
+
 export type AuthTokens = {
   accessToken: string;
   refreshToken: string;
@@ -742,6 +770,105 @@ export class ApiClient {
     return this.post(`/exchanges/${businessId}/reviews`, payload);
   }
 
+  async listMyBusinesses() {
+    return this.get<MyBusiness[]>('/businesses/mine');
+  }
+
+  async createBusiness(payload: {
+    type: BusinessType;
+    name: string;
+    description?: string;
+    phone?: string;
+    whatsapp?: string;
+    website?: string;
+    branchCity: string;
+    branchAddress: string;
+    branchLat?: number;
+    branchLng?: number;
+    branchTimeZone?: string;
+    branchHoursJson?: string;
+  }) {
+    return this.post<MyBusiness>('/businesses', payload);
+  }
+
+  async updateBusiness(
+    businessId: string,
+    payload: {
+      name?: string;
+      description?: string;
+      phone?: string;
+      whatsapp?: string;
+      website?: string;
+    },
+  ) {
+    return this.patch(`/businesses/${businessId}`, payload);
+  }
+
+  async createBusinessBranch(
+    businessId: string,
+    payload: {
+      city: string;
+      address: string;
+      lat?: number;
+      lng?: number;
+      timeZone?: string;
+      hoursJson?: string;
+    },
+  ) {
+    return this.post(`/businesses/${businessId}/branches`, payload);
+  }
+
+  async updateBranch(
+    branchId: string,
+    payload: {
+      city?: string;
+      address?: string;
+      lat?: number;
+      lng?: number;
+      timeZone?: string;
+      hoursJson?: string;
+      isActive?: boolean;
+    },
+  ) {
+    return this.patch(`/branches/${branchId}`, payload);
+  }
+
+  async upsertBranchOffer(
+    branchId: string,
+    payload: {
+      fromCurrency: string;
+      toCurrency: string;
+      direction: 'buy' | 'sell';
+      rate: string;
+      minAmount?: string;
+      maxAmount?: string;
+      feeNote?: string;
+    },
+  ) {
+    return this.post(`/branches/${branchId}/offers`, payload);
+  }
+
+  async updateOffer(
+    offerId: string,
+    payload: {
+      rate?: string;
+      minAmount?: string;
+      maxAmount?: string;
+      feeNote?: string;
+      direction?: 'buy' | 'sell';
+    },
+  ) {
+    return this.patch(`/offers/${offerId}`, payload);
+  }
+
+  async deleteOffer(offerId: string) {
+    return this.delete(`/offers/${offerId}`);
+  }
+
+  async listBusinessLeads(businessId: string) {
+    return this.get(`/businesses/${businessId}/leads`);
+  }
+
   private async get<TResponse = unknown>(
     path: string,
     query?: Record<string, unknown>,
@@ -795,6 +922,14 @@ export class ApiClient {
     const response = await this.fetchWithAuthRetry(url, {
       method: 'PATCH',
       body: JSON.stringify(body),
+    });
+    return this.handleResponse<TResponse>(response);
+  }
+
+  private async delete<TResponse = unknown>(path: string): Promise<TResponse> {
+    const url = this.buildUrl(path);
+    const response = await this.fetchWithAuthRetry(url, {
+      method: 'DELETE',
     });
     return this.handleResponse<TResponse>(response);
   }

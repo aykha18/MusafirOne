@@ -1425,6 +1425,12 @@ function AggregatorCurrencyScreen() {
                     : `Rating: — (${it.reviewCount ?? 0})`}
                   {it.openNow === true ? ' • Open' : it.openNow === false ? ' • Closed' : ''}
                 </ThemedText>
+                {it.offerUpdatedAt ? (
+                  <ThemedText style={{ opacity: 0.65 }}>
+                    Updated: {String(it.offerUpdatedAt)}
+                    {it.offerIsStale ? ' • Stale' : ''}
+                  </ThemedText>
+                ) : null}
               </AppCard>
             </Pressable>
           ))}

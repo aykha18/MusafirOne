@@ -33,11 +33,24 @@ type ExchangeListItem = {
   reviewCount: number;
   offerRate: string | null;
   offerUpdatedAt: string | null;
+  offerIsStale: boolean | null;
 };
 
 @Injectable()
 export class ExchangesService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private getOfferStaleHours() {
+    const raw = Number(process.env.OFFER_STALE_HOURS ?? 12);
+    if (!Number.isFinite(raw) || raw <= 0) return 12;
+    return raw;
+  }
+
+  private isOfferStale(updatedAt: Date) {
+    const staleHours = this.getOfferStaleHours();
+    const ageMs = Date.now() - updatedAt.getTime();
+    return ageMs > staleHours * 60 * 60 * 1000;
+  }
 
   private parseDecimalString(value: string | undefined, fieldName: string) {
     if (!value) return null;
@@ -183,6 +196,7 @@ export class ExchangesService {
                     where: {
                       fromCurrency,
                       toCurrency,
+                      direction: 'buy',
                     },
                   }
                 : true,
@@ -215,6 +229,7 @@ export class ExchangesService {
 
         let bestOfferRate: string | null = null;
         let bestOfferUpdatedAt: string | null = null;
+        let bestOfferIsStale: boolean | null = null;
         if (fromCurrency && toCurrency) {
           for (const br of branches) {
             const offers = Array.isArray(br.offers) ? br.offers : [];
@@ -231,6 +246,8 @@ export class ExchangesService {
               if (!bestOfferRate || Number(rate) > Number(bestOfferRate)) {
                 bestOfferRate = rate;
                 bestOfferUpdatedAt = o.updatedAt?.toISOString?.() ?? null;
+                bestOfferIsStale =
+                  o.updatedAt instanceof Date ? this.isOfferStale(o.updatedAt) : null;
               }
             }
           }
@@ -277,6 +294,7 @@ export class ExchangesService {
           reviewCount,
           offerRate: bestOfferRate,
           offerUpdatedAt: bestOfferUpdatedAt,
+          offerIsStale: bestOfferIsStale,
         };
       })
       .filter((x): x is ExchangeListItem => x !== null);
@@ -350,6 +368,13 @@ export class ExchangesService {
 
     return {
       ...business,
+      branches: business.branches.map((b) => ({
+        ...b,
+        offers: b.offers.map((o) => ({
+          ...o,
+          isStale: this.isOfferStale(o.updatedAt),
+        })),
+      })),
       ratingAvg,
       reviewCount,
     };
@@ -378,7 +403,13 @@ export class ExchangesService {
     });
     return {
       businessId,
-      branches,
+      branches: branches.map((b) => ({
+        ...b,
+        offers: b.offers.map((o) => ({
+          ...o,
+          isStale: this.isOfferStale(o.updatedAt),
+        })),
+      })),
     };
   }
 
@@ -776,6 +807,54 @@ export class ExchangesService {
           },
         },
       },
+    });
+  }
+
+  async ownerConfirmExchangeConfirmation(userId: string, confirmationId: string) {
+    const confirmation = await this.prisma.exchangeConfirmation.findUnique({
+      where: { id: confirmationId },
+      include: { branch: { include: { business: true } } },
+    });
+    if (!confirmation) throw new NotFoundException('Confirmation not found');
+    if (confirmation.branch.business.ownerUserId !== userId) {
+      throw new ForbiddenException();
+    }
+    return this.prisma.exchangeConfirmation.update({
+      where: { id: confirmationId },
+      data: {
+        status: 'business_confirmed',
+      },
+    });
+  }
+
+  async adminListReviews(businessId?: string, isHidden?: string) {
+    const hidden =
+      isHidden === '1' || isHidden === 'true'
+        ? true
+        : isHidden === '0' || isHidden === 'false'
+          ? false
+          : undefined;
+    return this.prisma.businessReview.findMany({
+      where: {
+        ...(businessId ? { businessId } : undefined),
+        ...(hidden === undefined ? undefined : { isHidden: hidden }),
+      },
+      orderBy: [{ createdAt: 'desc' }],
+      take: 200,
+      include: {
+        user: { select: { id: true, fullName: true, phoneNumber: true } },
+        business: { select: { id: true, name: true, status: true, isVerified: true } },
+        branch: { select: { id: true, city: true, address: true } },
+      },
+    });
+  }
+
+  async adminSetReviewHidden(id: string, isHidden: boolean) {
+    const existing = await this.prisma.businessReview.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Review not found');
+    return this.prisma.businessReview.update({
+      where: { id },
+      data: { isHidden },
     });
   }
 

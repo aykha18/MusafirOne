@@ -44,6 +44,7 @@ export type ExchangeListItem = {
   reviewCount: number;
   offerRate: string | null;
   offerUpdatedAt: string | null;
+  offerIsStale?: boolean | null;
   distanceKm: number | null;
   openNow: boolean | null;
 };

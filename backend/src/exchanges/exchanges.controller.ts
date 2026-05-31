@@ -22,6 +22,7 @@ import { ListExchangesDto } from './dto/list-exchanges.dto';
 import { UpdateBranchDto } from './dto/update-branch.dto';
 import { UpdateBusinessDto } from './dto/update-business.dto';
 import { UpdateOfferDto } from './dto/update-offer.dto';
+import { SetReviewHiddenDto } from './dto/set-review-hidden.dto';
 import { VerifyBusinessDto } from './dto/verify-business.dto';
 import { ExchangesService } from './exchanges.service';
 
@@ -175,5 +176,35 @@ export class BusinessesController {
   @Get('businesses/:id/leads')
   listLeads(@Req() req: AuthenticatedRequest, @Param('id') businessId: string) {
     return this.exchangesService.ownerListLeads(req.user.id, businessId);
+  }
+
+  @Post('confirmations/:id/confirm')
+  confirmExchange(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') confirmationId: string,
+  ) {
+    return this.exchangesService.ownerConfirmExchangeConfirmation(
+      req.user.id,
+      confirmationId,
+    );
+  }
+}
+
+@UseGuards(AuthGuard('jwt'), AdminGuard)
+@Controller('admin/reviews')
+export class AdminReviewsController {
+  constructor(private readonly exchangesService: ExchangesService) {}
+
+  @Get()
+  list(
+    @Query('businessId') businessId?: string,
+    @Query('isHidden') isHidden?: string,
+  ) {
+    return this.exchangesService.adminListReviews(businessId, isHidden);
+  }
+
+  @Patch(':id/hide')
+  hide(@Param('id') id: string, @Body() dto: SetReviewHiddenDto) {
+    return this.exchangesService.adminSetReviewHidden(id, dto.isHidden);
   }
 }

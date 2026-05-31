@@ -26,6 +26,7 @@ type Branch = {
     direction: 'buy' | 'sell';
     rate: string;
     updatedAt: string;
+    isStale?: boolean;
     minAmount?: string | null;
     maxAmount?: string | null;
     feeNote?: string | null;
@@ -235,11 +236,17 @@ export default function ExchangeDetailScreen() {
             {selectedBranch?.offers?.length ? (
               <ThemedView style={{ gap: 8 }}>
                 {selectedBranch.offers.map((o) => (
-                  <ThemedView key={o.id} style={styles.offerRow}>
-                    <ThemedText>
-                      {o.fromCurrency} → {o.toCurrency} ({o.direction})
+                  <ThemedView key={o.id} style={{ gap: 4 }}>
+                    <ThemedView style={styles.offerRow}>
+                      <ThemedText>
+                        {o.fromCurrency} → {o.toCurrency} ({o.direction})
+                      </ThemedText>
+                      <ThemedText type="defaultSemiBold">{o.rate}</ThemedText>
+                    </ThemedView>
+                    <ThemedText style={{ opacity: 0.65 }}>
+                      Updated: {String(o.updatedAt)}
+                      {o.isStale ? ' • Stale' : ''}
                     </ThemedText>
-                    <ThemedText type="defaultSemiBold">{o.rate}</ThemedText>
                   </ThemedView>
                 ))}
               </ThemedView>

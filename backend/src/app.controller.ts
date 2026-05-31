@@ -9,4 +9,12 @@ export class AppController {
   getHello(): string {
     return this.appService.getHello();
   }
+
+  @Get('app-config')
+  getAppConfig() {
+    return {
+      aggregatorMode:
+        process.env.AGGREGATOR_MODE === '1' || process.env.AGGREGATOR_MODE === 'true',
+    };
+  }
 }

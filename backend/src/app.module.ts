@@ -17,6 +17,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { LogsModule } from './logs/logs.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { ReferralsModule } from './referrals/referrals.module';
+import { ExchangesModule } from './exchanges/exchanges.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { ReferralsModule } from './referrals/referrals.module';
     VerificationModule,
     FeaturesModule,
     ReferralsModule,
+    ExchangesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

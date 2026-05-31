@@ -135,8 +135,199 @@ async function seedFeatureIdeas(prisma: PrismaClient) {
   }
 }
 
+async function seedExchangeAggregator(prisma: PrismaClient) {
+  const owner = await prisma.user.upsert({
+    where: { phoneNumber: '+971-500009999' },
+    update: {
+      fullName: 'Exchange Admin',
+      city: 'Dubai',
+      corridor: 'GCC',
+      verificationLevel: 3,
+      isSuspended: false,
+    },
+    create: {
+      phoneNumber: '+971-500009999',
+      fullName: 'Exchange Admin',
+      city: 'Dubai',
+      corridor: 'GCC',
+      verificationLevel: 3,
+      trustScore: 0,
+      isSuspended: false,
+      isAdmin: false,
+    },
+  });
+
+  const commonHours = JSON.stringify({
+    weekly: {
+      mon: [{ start: '09:00', end: '21:00' }],
+      tue: [{ start: '09:00', end: '21:00' }],
+      wed: [{ start: '09:00', end: '21:00' }],
+      thu: [{ start: '09:00', end: '21:00' }],
+      fri: [{ start: '14:00', end: '21:00' }],
+      sat: [{ start: '09:00', end: '21:00' }],
+      sun: [{ start: '09:00', end: '21:00' }],
+    },
+  });
+
+  const businessesToSeed = [
+    {
+      name: 'Al Baraka Exchange',
+      phone: '+971-4-0000001',
+      whatsapp: '+971-50-0000001',
+      website: 'https://example.com/albaraka',
+      isVerified: true,
+      city: 'Dubai',
+      address: 'Deira, Dubai',
+      lat: 25.2697,
+      lng: 55.3095,
+      offers: [
+        {
+          fromCurrency: 'SAR',
+          toCurrency: 'INR',
+          direction: 'buy',
+          rate: '22.10',
+        },
+        {
+          fromCurrency: 'SAR',
+          toCurrency: 'INR',
+          direction: 'sell',
+          rate: '22.35',
+        },
+        {
+          fromCurrency: 'AED',
+          toCurrency: 'INR',
+          direction: 'sell',
+          rate: '22.75',
+        },
+      ],
+    },
+    {
+      name: 'Lulu Exchange',
+      phone: '+971-4-0000002',
+      whatsapp: '+971-50-0000002',
+      website: 'https://example.com/lulu',
+      isVerified: false,
+      city: 'Dubai',
+      address: 'Karama, Dubai',
+      lat: 25.2442,
+      lng: 55.3031,
+      offers: [
+        {
+          fromCurrency: 'SAR',
+          toCurrency: 'INR',
+          direction: 'sell',
+          rate: '22.28',
+        },
+        {
+          fromCurrency: 'AED',
+          toCurrency: 'INR',
+          direction: 'sell',
+          rate: '22.62',
+        },
+      ],
+    },
+  ] as const;
+
+  for (const b of businessesToSeed) {
+    const existing = await prisma.business.findFirst({
+      where: { name: b.name, type: 'exchange' },
+    });
+    const business =
+      existing ??
+      (await prisma.business.create({
+        data: {
+          ownerUserId: owner.id,
+          type: 'exchange',
+          name: b.name,
+          phone: b.phone,
+          whatsapp: b.whatsapp,
+          website: b.website,
+          status: 'active',
+          isVerified: b.isVerified,
+        },
+      }));
+
+    if (existing) {
+      await prisma.business.update({
+        where: { id: existing.id },
+        data: {
+          ownerUserId: owner.id,
+          phone: b.phone,
+          whatsapp: b.whatsapp,
+          website: b.website,
+          status: 'active',
+          isVerified: b.isVerified,
+        },
+      });
+    }
+
+    let branch = await prisma.businessBranch.findFirst({
+      where: {
+        businessId: business.id,
+        city: b.city,
+        address: b.address,
+      },
+    });
+    if (!branch) {
+      branch = await prisma.businessBranch.create({
+        data: {
+          businessId: business.id,
+          city: b.city,
+          address: b.address,
+          lat: b.lat,
+          lng: b.lng,
+          timeZone: 'Asia/Dubai',
+          hoursJson: commonHours,
+          isActive: true,
+        },
+      });
+    } else {
+      await prisma.businessBranch.update({
+        where: { id: branch.id },
+        data: {
+          lat: b.lat,
+          lng: b.lng,
+          timeZone: 'Asia/Dubai',
+          hoursJson: commonHours,
+          isActive: true,
+        },
+      });
+    }
+
+    for (const offer of b.offers) {
+      await prisma.exchangeOffer.upsert({
+        where: {
+          branchId_fromCurrency_toCurrency_direction: {
+            branchId: branch.id,
+            fromCurrency: offer.fromCurrency,
+            toCurrency: offer.toCurrency,
+            direction: offer.direction,
+          },
+        },
+        update: {
+          rate: offer.rate,
+        },
+        create: {
+          branchId: branch.id,
+          fromCurrency: offer.fromCurrency,
+          toCurrency: offer.toCurrency,
+          direction: offer.direction,
+          rate: offer.rate,
+        },
+      });
+    }
+  }
+}
+
 async function main() {
   const prisma = getPrisma();
+
+  if (process.env.SEED_EXCHANGES_ONLY === '1') {
+    await seedExchangeAggregator(prisma);
+    await prisma.$disconnect();
+    process.stdout.write('Seed complete\n');
+    return;
+  }
 
   if (process.env.SEED_FEATURE_IDEAS_ONLY === '1') {
     await seedFeatureIdeas(prisma);

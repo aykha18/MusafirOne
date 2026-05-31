@@ -42,7 +42,7 @@ type MatchRequest = {
   createdAt: string;
 };
 
-export default function CurrencyScreen() {
+function P2PCurrencyScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const formBackgroundColor = isDark ? '#1E1E1E' : '#f9f9f9';
@@ -1283,3 +1283,196 @@ const styles = StyleSheet.create({
     gap: 8,
   },
 });
+
+function AggregatorCurrencyScreen() {
+  const colorScheme = useColorScheme();
+  const [city, setCity] = useState('Dubai');
+  const [fromCurrency, setFromCurrency] = useState('SAR');
+  const [toCurrency, setToCurrency] = useState('INR');
+  const [amount, setAmount] = useState('1000');
+  const [openNow, setOpenNow] = useState(false);
+  const [sort, setSort] = useState<'bestRate' | 'nearby' | 'topRated'>(
+    'bestRate',
+  );
+  const [items, setItems] = useState<any[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await apiClient.listExchanges({
+        city: city.trim(),
+        fromCurrency: fromCurrency.trim().toUpperCase(),
+        toCurrency: toCurrency.trim().toUpperCase(),
+        amount: amount.trim(),
+        openNow: openNow ? '1' : '0',
+        sort,
+      });
+      setItems((res as any)?.items ?? []);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }, [amount, city, fromCurrency, openNow, sort, toCurrency]);
+
+  useEffect(() => {
+    if (!apiClient.getAccessToken()) {
+      router.push('/');
+      return;
+    }
+    void load();
+  }, [load]);
+
+  const openExchange = (id: string) => {
+    const qs =
+      `fromCurrency=${encodeURIComponent(fromCurrency.trim().toUpperCase())}` +
+      `&toCurrency=${encodeURIComponent(toCurrency.trim().toUpperCase())}` +
+      `&amount=${encodeURIComponent(amount.trim())}` +
+      `&city=${encodeURIComponent(city.trim())}`;
+    router.push(`/exchanges/${id}?${qs}`);
+  };
+
+  return (
+    <ParallaxScrollView
+      headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
+      headerImage={null}
+    >
+      <ThemedView style={{ gap: 12 }}>
+        <ThemedText type="title">Currency Exchange</ThemedText>
+        <ThemedText style={{ opacity: 0.75 }}>
+          Compare verified agencies nearby.
+        </ThemedText>
+
+        <AppCard style={{ padding: 14, gap: 10 }}>
+          <CitySelector placeholder="City" value={city} onChange={setCity} />
+          <CurrencySelector
+            placeholder="From currency"
+            value={fromCurrency}
+            onChange={setFromCurrency}
+          />
+          <CurrencySelector
+            placeholder="To currency"
+            value={toCurrency}
+            onChange={setToCurrency}
+          />
+          <ThemedInput
+            placeholder="Amount"
+            keyboardType="numeric"
+            value={amount}
+            onChangeText={setAmount}
+          />
+
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <ThemedButton
+              title={openNow ? 'Open Now: ON' : 'Open Now: OFF'}
+              variant="secondary"
+              onPress={() => setOpenNow((v) => !v)}
+              style={{ flex: 1 }}
+            />
+            <ThemedButton
+              title={
+                sort === 'bestRate'
+                  ? 'Sort: Rate'
+                  : sort === 'topRated'
+                    ? 'Sort: Rated'
+                    : 'Sort: Nearby'
+              }
+              variant="secondary"
+              onPress={() => {
+                setSort((prev) =>
+                  prev === 'bestRate'
+                    ? 'topRated'
+                    : prev === 'topRated'
+                      ? 'nearby'
+                      : 'bestRate',
+                );
+              }}
+              style={{ flex: 1 }}
+            />
+          </View>
+
+          <ThemedButton
+            title={busy ? 'Searching...' : 'Search'}
+            onPress={load}
+            disabled={busy}
+            fullWidth
+          />
+
+          {error ? <ThemedText style={{ color: 'red' }}>{error}</ThemedText> : null}
+        </AppCard>
+
+        <ThemedView style={{ gap: 12 }}>
+          {items.map((it) => (
+            <Pressable key={it.id} onPress={() => openExchange(String(it.id))}>
+              <AppCard style={{ padding: 14, gap: 8 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 10 }}>
+                  <ThemedText type="defaultSemiBold">
+                    {it.name} {it.isVerified ? '✓' : ''}
+                  </ThemedText>
+                  <ThemedText style={{ opacity: 0.8 }}>
+                    {it.offerRate ? `Rate: ${it.offerRate}` : 'Rate: —'}
+                  </ThemedText>
+                </View>
+                <ThemedText style={{ opacity: 0.75 }}>
+                  {it.city} • {it.address}
+                </ThemedText>
+                <ThemedText style={{ opacity: 0.75 }}>
+                  {typeof it.ratingAvg === 'number'
+                    ? `Rating: ${it.ratingAvg.toFixed(1)} (${it.reviewCount ?? 0})`
+                    : `Rating: — (${it.reviewCount ?? 0})`}
+                  {it.openNow === true ? ' • Open' : it.openNow === false ? ' • Closed' : ''}
+                </ThemedText>
+              </AppCard>
+            </Pressable>
+          ))}
+          {items.length === 0 && !busy ? (
+            <ThemedText style={{ opacity: 0.75 }}>
+              No agencies found for your filters.
+            </ThemedText>
+          ) : null}
+        </ThemedView>
+      </ThemedView>
+    </ParallaxScrollView>
+  );
+}
+
+export default function CurrencyScreen() {
+  const [aggregatorMode, setAggregatorMode] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    apiClient
+      .getAppConfig()
+      .then((cfg: any) => {
+        if (!active) return;
+        setAggregatorMode(!!cfg?.aggregatorMode);
+      })
+      .catch(() => {
+        if (!active) return;
+        setAggregatorMode(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (aggregatorMode === null) {
+    return (
+      <ParallaxScrollView
+        headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
+        headerImage={null}
+      >
+        <ThemedText>Loading...</ThemedText>
+      </ParallaxScrollView>
+    );
+  }
+
+  if (aggregatorMode) {
+    return <AggregatorCurrencyScreen />;
+  }
+
+  return <P2PCurrencyScreen />;
+}

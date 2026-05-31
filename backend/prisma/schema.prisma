@@ -37,6 +37,10 @@ model User {
   reviewedVerificationDocuments VerificationDocument[] @relation("VerificationDocumentsReviewedBy")
   featureVotes      FeatureVote[]
   featureIdeasSubmitted FeatureIdea[]        @relation("FeatureIdeaSubmittedBy")
+  ownedBusinesses   Business[]
+  exchangeLeads     ExchangeLead[]
+  exchangeConfirmations ExchangeConfirmation[]
+  businessReviews   BusinessReview[]
   userDevices        UserDevice[]
   refreshTokens      RefreshToken[]
   stateChangeLogs    StateChangeLog[]       @relation("ChangedByUser")
@@ -132,6 +136,140 @@ model FeatureVote {
   @@unique([featureId, userId])
   @@index([featureId])
   @@index([userId])
+}
+
+model Business {
+  id         String         @id @default(uuid())
+  ownerUserId String?
+  type       BusinessType
+  name       String
+  description String?
+  phone      String?
+  whatsapp   String?
+  website    String?
+  status     BusinessStatus @default(pending)
+  isVerified Boolean        @default(false)
+  trialEndsAt DateTime?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  owner      User?          @relation(fields: [ownerUserId], references: [id])
+  branches   BusinessBranch[]
+  reviews    BusinessReview[]
+
+  @@index([status])
+  @@index([type])
+  @@index([ownerUserId])
+}
+
+model BusinessBranch {
+  id         String   @id @default(uuid())
+  businessId String
+  city       String
+  address    String
+  lat        Float?
+  lng        Float?
+  timeZone   String?
+  hoursJson  String?
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  business   Business @relation(fields: [businessId], references: [id])
+  offers     ExchangeOffer[]
+  leads      ExchangeLead[]
+  confirmations ExchangeConfirmation[]
+  reviews    BusinessReview[]
+
+  @@index([businessId])
+  @@index([city])
+}
+
+model ExchangeOffer {
+  id         String               @id @default(uuid())
+  branchId   String
+  fromCurrency String
+  toCurrency String
+  direction  ExchangeOfferDirection
+  rate       Decimal
+  minAmount  Decimal?
+  maxAmount  Decimal?
+  feeNote    String?
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+
+  branch     BusinessBranch       @relation(fields: [branchId], references: [id])
+  confirmations ExchangeConfirmation[]
+
+  @@index([branchId])
+  @@index([fromCurrency, toCurrency])
+  @@unique([branchId, fromCurrency, toCurrency, direction])
+}
+
+model ExchangeLead {
+  id         String            @id @default(uuid())
+  userId     String
+  branchId   String
+  fromCurrency String
+  toCurrency String
+  amount     Decimal
+  channel    ExchangeLeadChannel
+  createdAt  DateTime          @default(now())
+
+  user       User              @relation(fields: [userId], references: [id])
+  branch     BusinessBranch    @relation(fields: [branchId], references: [id])
+
+  @@index([userId])
+  @@index([branchId])
+  @@index([createdAt])
+}
+
+model ExchangeConfirmation {
+  id         String                   @id @default(uuid())
+  userId     String
+  branchId   String
+  offerId    String?
+  fromCurrency String
+  toCurrency String
+  amount     Decimal
+  rateObserved Decimal?
+  status     ExchangeConfirmationStatus @default(user_confirmed)
+  createdAt  DateTime                 @default(now())
+  updatedAt  DateTime                 @updatedAt
+
+  user       User                     @relation(fields: [userId], references: [id])
+  branch     BusinessBranch           @relation(fields: [branchId], references: [id])
+  offer      ExchangeOffer?           @relation(fields: [offerId], references: [id])
+  review     BusinessReview?
+
+  @@index([userId])
+  @@index([branchId])
+  @@index([offerId])
+  @@index([status])
+}
+
+model BusinessReview {
+  id                  String   @id @default(uuid())
+  userId              String
+  businessId          String
+  branchId            String?
+  confirmationId      String?  @unique
+  rateFairnessScore   Int
+  serviceScore        Int
+  speedScore          Int
+  comment             String?
+  isHidden            Boolean  @default(false)
+  createdAt           DateTime @default(now())
+
+  user                User     @relation(fields: [userId], references: [id])
+  business            Business @relation(fields: [businessId], references: [id])
+  branch              BusinessBranch? @relation(fields: [branchId], references: [id])
+  confirmation        ExchangeConfirmation? @relation(fields: [confirmationId], references: [id])
+
+  @@index([userId])
+  @@index([businessId])
+  @@index([branchId])
+  @@index([createdAt])
 }
 
 model PushToken {
@@ -397,4 +535,34 @@ enum VerificationDocumentStatus {
   under_review
   approved
   rejected
+}
+
+enum BusinessType {
+  exchange
+  umrah
+}
+
+enum BusinessStatus {
+  pending
+  active
+  rejected
+}
+
+enum ExchangeOfferDirection {
+  buy
+  sell
+}
+
+enum ExchangeLeadChannel {
+  call
+  whatsapp
+  directions
+  share
+  other
+}
+
+enum ExchangeConfirmationStatus {
+  user_confirmed
+  business_confirmed
+  disputed
 }

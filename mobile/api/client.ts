@@ -30,6 +30,37 @@ export type AdminDashboardStats = {
   totalCurrencyPosts: number;
 };
 
+export type AppConfig = {
+  aggregatorMode: boolean;
+};
+
+export type ExchangeListItem = {
+  id: string;
+  name: string;
+  isVerified: boolean;
+  city: string;
+  address: string;
+  ratingAvg: number | null;
+  reviewCount: number;
+  offerRate: string | null;
+  offerUpdatedAt: string | null;
+  distanceKm: number | null;
+  openNow: boolean | null;
+};
+
+export type ExchangesListResponse = {
+  items: ExchangeListItem[];
+  query: {
+    city: string | null;
+    fromCurrency: string | null;
+    toCurrency: string | null;
+    amount: string | null;
+    openNow: boolean | null;
+    lat: number | null;
+    lng: number | null;
+  };
+};
+
 export type AuthTokens = {
   accessToken: string;
   refreshToken: string;
@@ -646,6 +677,69 @@ export class ApiClient {
 
   async redeemReferral(code: string) {
     return this.post('/referrals/redeem', { code });
+  }
+
+  async getAppConfig() {
+    return this.get<AppConfig>('/app-config');
+  }
+
+  async listExchanges(params?: {
+    city?: string;
+    fromCurrency?: string;
+    toCurrency?: string;
+    amount?: string;
+    openNow?: '0' | '1' | 'true' | 'false';
+    sort?: 'bestRate' | 'nearby' | 'topRated';
+    lat?: string;
+    lng?: string;
+  }) {
+    return this.get<ExchangesListResponse>('/exchanges', params);
+  }
+
+  async getExchange(businessId: string) {
+    return this.get(`/exchanges/${businessId}`);
+  }
+
+  async listExchangeOffers(businessId: string, branchId?: string) {
+    return this.get(`/exchanges/${businessId}/offers`, branchId ? { branchId } : undefined);
+  }
+
+  async createExchangeLead(
+    branchId: string,
+    payload: {
+      fromCurrency: string;
+      toCurrency: string;
+      amount: string;
+      channel: 'call' | 'whatsapp' | 'directions' | 'share' | 'other';
+    },
+  ) {
+    return this.post(`/exchanges/${branchId}/leads`, payload);
+  }
+
+  async createExchangeConfirmation(
+    branchId: string,
+    payload: {
+      offerId?: string;
+      fromCurrency: string;
+      toCurrency: string;
+      amount: string;
+      rateObserved?: string;
+    },
+  ) {
+    return this.post(`/exchanges/${branchId}/confirmations`, payload);
+  }
+
+  async createBusinessReview(
+    businessId: string,
+    payload: {
+      confirmationId: string;
+      rateFairnessScore: number;
+      serviceScore: number;
+      speedScore: number;
+      comment?: string;
+    },
+  ) {
+    return this.post(`/exchanges/${businessId}/reviews`, payload);
   }
 
   private async get<TResponse = unknown>(

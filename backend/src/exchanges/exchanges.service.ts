@@ -6,10 +6,16 @@ import {
 } from '@nestjs/common';
 import { BusinessStatus, BusinessType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { CreateBranchDto } from './dto/create-branch.dto';
+import { CreateBusinessDto } from './dto/create-business.dto';
 import { CreateBusinessReviewDto } from './dto/create-business-review.dto';
 import { CreateExchangeConfirmationDto } from './dto/create-exchange-confirmation.dto';
 import { CreateExchangeLeadDto } from './dto/create-exchange-lead.dto';
+import { CreateOfferDto } from './dto/create-offer.dto';
 import { ListExchangesDto } from './dto/list-exchanges.dto';
+import { UpdateBranchDto } from './dto/update-branch.dto';
+import { UpdateBusinessDto } from './dto/update-business.dto';
+import { UpdateOfferDto } from './dto/update-offer.dto';
 
 type ExchangeListItem = {
   id: string;
@@ -479,6 +485,296 @@ export class ExchangesService {
         serviceScore: dto.serviceScore,
         speedScore: dto.speedScore,
         comment: dto.comment?.trim() ? dto.comment.trim() : null,
+      },
+    });
+  }
+
+  private async assertBusinessOwner(userId: string, businessId: string) {
+    const business = await this.prisma.business.findUnique({
+      where: { id: businessId },
+    });
+    if (!business) throw new NotFoundException('Business not found');
+    if (business.ownerUserId !== userId) throw new ForbiddenException();
+    return business;
+  }
+
+  private async assertBranchOwner(userId: string, branchId: string) {
+    const branch = await this.prisma.businessBranch.findUnique({
+      where: { id: branchId },
+      include: { business: true },
+    });
+    if (!branch) throw new NotFoundException('Branch not found');
+    if (branch.business.ownerUserId !== userId) throw new ForbiddenException();
+    return branch;
+  }
+
+  private async assertOfferOwner(userId: string, offerId: string) {
+    const offer = await this.prisma.exchangeOffer.findUnique({
+      where: { id: offerId },
+      include: {
+        branch: {
+          include: {
+            business: true,
+          },
+        },
+      },
+    });
+    if (!offer) throw new NotFoundException('Offer not found');
+    if (offer.branch.business.ownerUserId !== userId) throw new ForbiddenException();
+    return offer;
+  }
+
+  async ownerListMyBusinesses(userId: string) {
+    return this.prisma.business.findMany({
+      where: {
+        ownerUserId: userId,
+      },
+      orderBy: [{ createdAt: 'desc' }],
+      include: {
+        branches: {
+          orderBy: [{ createdAt: 'asc' }],
+          take: 20,
+        },
+      },
+    });
+  }
+
+  async ownerCreateBusiness(userId: string, dto: CreateBusinessDto) {
+    const pendingCount = await this.prisma.business.count({
+      where: { ownerUserId: userId, status: 'pending' },
+    });
+    if (pendingCount >= 3) {
+      throw new BadRequestException('Too many pending businesses');
+    }
+
+    const now = new Date();
+    const trialEndsAt =
+      dto.type === 'umrah'
+        ? new Date(
+            Date.UTC(
+              now.getUTCFullYear(),
+              now.getUTCMonth() + 6,
+              now.getUTCDate(),
+              now.getUTCHours(),
+              now.getUTCMinutes(),
+              now.getUTCSeconds(),
+            ),
+          )
+        : null;
+
+    const created = await this.prisma.business.create({
+      data: {
+        ownerUserId: userId,
+        type: dto.type as any,
+        name: dto.name.trim(),
+        description: dto.description?.trim() ? dto.description.trim() : null,
+        phone: dto.phone?.trim() ? dto.phone.trim() : null,
+        whatsapp: dto.whatsapp?.trim() ? dto.whatsapp.trim() : null,
+        website: dto.website?.trim() ? dto.website.trim() : null,
+        status: 'pending',
+        isVerified: false,
+        trialEndsAt,
+        branches: {
+          create: {
+            city: dto.branchCity.trim(),
+            address: dto.branchAddress.trim(),
+            lat: typeof dto.branchLat === 'number' ? dto.branchLat : null,
+            lng: typeof dto.branchLng === 'number' ? dto.branchLng : null,
+            timeZone: dto.branchTimeZone?.trim() ? dto.branchTimeZone.trim() : null,
+            hoursJson: dto.branchHoursJson?.trim()
+              ? dto.branchHoursJson.trim()
+              : null,
+            isActive: true,
+          },
+        },
+      },
+      include: {
+        branches: true,
+      },
+    });
+    return created;
+  }
+
+  async ownerUpdateBusiness(userId: string, businessId: string, dto: UpdateBusinessDto) {
+    const business = await this.assertBusinessOwner(userId, businessId);
+    if (business.status === 'rejected') {
+      throw new BadRequestException('Business is rejected');
+    }
+
+    const nextStatus =
+      business.status === 'active' ? ('pending' as const) : business.status;
+
+    return this.prisma.business.update({
+      where: { id: businessId },
+      data: {
+        name: dto.name?.trim() ? dto.name.trim() : undefined,
+        description:
+          dto.description !== undefined
+            ? dto.description.trim() || null
+            : undefined,
+        phone: dto.phone !== undefined ? dto.phone.trim() || null : undefined,
+        whatsapp:
+          dto.whatsapp !== undefined ? dto.whatsapp.trim() || null : undefined,
+        website:
+          dto.website !== undefined ? dto.website.trim() || null : undefined,
+        status: nextStatus,
+        isVerified: nextStatus === 'pending' ? false : undefined,
+      },
+    });
+  }
+
+  async ownerCreateBranch(userId: string, businessId: string, dto: CreateBranchDto) {
+    const business = await this.assertBusinessOwner(userId, businessId);
+    if (business.status === 'rejected') {
+      throw new BadRequestException('Business is rejected');
+    }
+    return this.prisma.businessBranch.create({
+      data: {
+        businessId,
+        city: dto.city.trim(),
+        address: dto.address.trim(),
+        lat: typeof dto.lat === 'number' ? dto.lat : null,
+        lng: typeof dto.lng === 'number' ? dto.lng : null,
+        timeZone: dto.timeZone?.trim() ? dto.timeZone.trim() : null,
+        hoursJson: dto.hoursJson?.trim() ? dto.hoursJson.trim() : null,
+        isActive: true,
+      },
+    });
+  }
+
+  async ownerUpdateBranch(userId: string, branchId: string, dto: UpdateBranchDto) {
+    const branch = await this.assertBranchOwner(userId, branchId);
+    if (branch.business.status === 'rejected') {
+      throw new BadRequestException('Business is rejected');
+    }
+    return this.prisma.businessBranch.update({
+      where: { id: branchId },
+      data: {
+        city: dto.city?.trim() ? dto.city.trim() : undefined,
+        address: dto.address?.trim() ? dto.address.trim() : undefined,
+        lat: dto.lat === undefined ? undefined : dto.lat,
+        lng: dto.lng === undefined ? undefined : dto.lng,
+        timeZone:
+          dto.timeZone === undefined ? undefined : dto.timeZone.trim() || null,
+        hoursJson:
+          dto.hoursJson === undefined ? undefined : dto.hoursJson.trim() || null,
+        isActive: dto.isActive === undefined ? undefined : dto.isActive,
+      },
+    });
+  }
+
+  async ownerCreateOffer(userId: string, branchId: string, dto: CreateOfferDto) {
+    const branch = await this.assertBranchOwner(userId, branchId);
+    if (branch.business.type !== 'exchange') {
+      throw new BadRequestException('Offers are only supported for exchange businesses');
+    }
+    if (branch.business.status !== 'active') {
+      throw new BadRequestException('Business must be approved before publishing offers');
+    }
+
+    const rate = this.parseDecimalString(dto.rate, 'rate');
+    if (!rate) throw new BadRequestException('rate is required');
+    const minAmount = this.parseDecimalString(dto.minAmount, 'minAmount');
+    const maxAmount = this.parseDecimalString(dto.maxAmount, 'maxAmount');
+    if (minAmount && maxAmount && Number(minAmount) > Number(maxAmount)) {
+      throw new BadRequestException('minAmount must be <= maxAmount');
+    }
+
+    return this.prisma.exchangeOffer.upsert({
+      where: {
+        branchId_fromCurrency_toCurrency_direction: {
+          branchId,
+          fromCurrency: dto.fromCurrency.trim().toUpperCase(),
+          toCurrency: dto.toCurrency.trim().toUpperCase(),
+          direction: dto.direction as any,
+        },
+      },
+      update: {
+        rate,
+        minAmount: minAmount ?? null,
+        maxAmount: maxAmount ?? null,
+        feeNote: dto.feeNote?.trim() ? dto.feeNote.trim() : null,
+      },
+      create: {
+        branchId,
+        fromCurrency: dto.fromCurrency.trim().toUpperCase(),
+        toCurrency: dto.toCurrency.trim().toUpperCase(),
+        direction: dto.direction as any,
+        rate,
+        minAmount: minAmount ?? null,
+        maxAmount: maxAmount ?? null,
+        feeNote: dto.feeNote?.trim() ? dto.feeNote.trim() : null,
+      },
+    });
+  }
+
+  async ownerUpdateOffer(userId: string, offerId: string, dto: UpdateOfferDto) {
+    const offer = await this.assertOfferOwner(userId, offerId);
+    if (offer.branch.business.status !== 'active') {
+      throw new BadRequestException('Business must be approved before updating offers');
+    }
+
+    const rate =
+      dto.rate === undefined
+        ? undefined
+        : this.parseDecimalString(dto.rate, 'rate') ?? undefined;
+    const minAmount =
+      dto.minAmount === undefined
+        ? undefined
+        : this.parseDecimalString(dto.minAmount, 'minAmount');
+    const maxAmount =
+      dto.maxAmount === undefined
+        ? undefined
+        : this.parseDecimalString(dto.maxAmount, 'maxAmount');
+    if (typeof minAmount === 'string' && typeof maxAmount === 'string') {
+      if (Number(minAmount) > Number(maxAmount)) {
+        throw new BadRequestException('minAmount must be <= maxAmount');
+      }
+    }
+
+    return this.prisma.exchangeOffer.update({
+      where: { id: offerId },
+      data: {
+        rate,
+        minAmount: minAmount === undefined ? undefined : minAmount ?? null,
+        maxAmount: maxAmount === undefined ? undefined : maxAmount ?? null,
+        feeNote: dto.feeNote === undefined ? undefined : dto.feeNote.trim() || null,
+        direction: dto.direction as any,
+      },
+    });
+  }
+
+  async ownerDeleteOffer(userId: string, offerId: string) {
+    await this.assertOfferOwner(userId, offerId);
+    await this.prisma.exchangeOffer.delete({ where: { id: offerId } });
+    return { ok: true as const };
+  }
+
+  async ownerListLeads(userId: string, businessId: string) {
+    await this.assertBusinessOwner(userId, businessId);
+    return this.prisma.exchangeLead.findMany({
+      where: {
+        branch: {
+          businessId,
+        },
+      },
+      orderBy: [{ createdAt: 'desc' }],
+      take: 200,
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            verificationLevel: true,
+          },
+        },
+        branch: {
+          select: {
+            id: true,
+            city: true,
+            address: true,
+          },
+        },
       },
     });
   }

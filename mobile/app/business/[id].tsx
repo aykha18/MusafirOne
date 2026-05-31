@@ -39,11 +39,28 @@ export default function BusinessDetailScreen() {
 
   const [tab, setTab] = useState<'offers' | 'leads' | 'settings'>('offers');
 
+  const [editingBusiness, setEditingBusiness] = useState(false);
+  const [editBusinessName, setEditBusinessName] = useState('');
+  const [editBusinessDescription, setEditBusinessDescription] = useState('');
+  const [editBusinessPhone, setEditBusinessPhone] = useState('');
+  const [editBusinessWhatsapp, setEditBusinessWhatsapp] = useState('');
+  const [editBusinessWebsite, setEditBusinessWebsite] = useState('');
+
   const [addingBranch, setAddingBranch] = useState(false);
   const [branchCity, setBranchCity] = useState('');
   const [branchAddress, setBranchAddress] = useState('');
 
+  const [editingBranch, setEditingBranch] = useState(false);
+  const [editBranchCity, setEditBranchCity] = useState('');
+  const [editBranchAddress, setEditBranchAddress] = useState('');
+  const [editBranchLat, setEditBranchLat] = useState('');
+  const [editBranchLng, setEditBranchLng] = useState('');
+  const [editBranchTimeZone, setEditBranchTimeZone] = useState('');
+  const [editBranchHoursJson, setEditBranchHoursJson] = useState('');
+  const [editBranchIsActive, setEditBranchIsActive] = useState(true);
+
   const [addingOffer, setAddingOffer] = useState(false);
+  const [editingOfferId, setEditingOfferId] = useState<string | null>(null);
   const [offerFrom, setOfferFrom] = useState('SAR');
   const [offerTo, setOfferTo] = useState('INR');
   const [offerDirection, setOfferDirection] = useState<'buy' | 'sell'>('sell');
@@ -60,6 +77,13 @@ export default function BusinessDetailScreen() {
     return business.branches[0] ?? null;
   }, [business, selectedBranchId]);
 
+  const formatTimestamp = (value: string | null | undefined) => {
+    if (!value) return '';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return String(value);
+    return d.toLocaleString();
+  };
+
   const loadBusiness = async () => {
     if (!businessId) return;
     setBusy(true);
@@ -70,6 +94,14 @@ export default function BusinessDetailScreen() {
       setBusiness(found);
       const firstBranch = found?.branches?.[0]?.id ?? null;
       setSelectedBranchId((prev) => prev ?? firstBranch);
+
+      if (found && !editingBusiness) {
+        setEditBusinessName(found.name ?? '');
+        setEditBusinessDescription(found.description ?? '');
+        setEditBusinessPhone(found.phone ?? '');
+        setEditBusinessWhatsapp(found.whatsapp ?? '');
+        setEditBusinessWebsite(found.website ?? '');
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -115,6 +147,21 @@ export default function BusinessDetailScreen() {
     }
   }, [businessId, selectedBranchId, tab]);
 
+  useEffect(() => {
+    if (!selectedBranch) return;
+    setEditBranchCity(selectedBranch.city ?? '');
+    setEditBranchAddress(selectedBranch.address ?? '');
+    setEditBranchLat(
+      typeof selectedBranch.lat === 'number' ? String(selectedBranch.lat) : '',
+    );
+    setEditBranchLng(
+      typeof selectedBranch.lng === 'number' ? String(selectedBranch.lng) : '',
+    );
+    setEditBranchTimeZone(selectedBranch.timeZone ?? '');
+    setEditBranchHoursJson(selectedBranch.hoursJson ?? '');
+    setEditBranchIsActive(!!selectedBranch.isActive);
+  }, [selectedBranch?.id]);
+
   const handleAddBranch = async () => {
     if (!businessId) return;
     if (branchCity.trim().length < 2 || branchAddress.trim().length < 2) {
@@ -150,21 +197,131 @@ export default function BusinessDetailScreen() {
     setBusy(true);
     setError(null);
     try {
-      await apiClient.upsertBranchOffer(selectedBranchId, {
-        fromCurrency: offerFrom.trim().toUpperCase(),
-        toCurrency: offerTo.trim().toUpperCase(),
-        direction: offerDirection,
-        rate: offerRate.trim(),
-        minAmount: offerMin.trim() ? offerMin.trim() : undefined,
-        maxAmount: offerMax.trim() ? offerMax.trim() : undefined,
-        feeNote: offerFeeNote.trim() ? offerFeeNote.trim() : undefined,
-      });
+      if (editingOfferId) {
+        await apiClient.updateOffer(editingOfferId, {
+          rate: offerRate.trim(),
+          minAmount: offerMin.trim() ? offerMin.trim() : undefined,
+          maxAmount: offerMax.trim() ? offerMax.trim() : undefined,
+          feeNote: offerFeeNote.trim() ? offerFeeNote.trim() : undefined,
+        });
+      } else {
+        await apiClient.upsertBranchOffer(selectedBranchId, {
+          fromCurrency: offerFrom.trim().toUpperCase(),
+          toCurrency: offerTo.trim().toUpperCase(),
+          direction: offerDirection,
+          rate: offerRate.trim(),
+          minAmount: offerMin.trim() ? offerMin.trim() : undefined,
+          maxAmount: offerMax.trim() ? offerMax.trim() : undefined,
+          feeNote: offerFeeNote.trim() ? offerFeeNote.trim() : undefined,
+        });
+      }
       setAddingOffer(false);
+      setEditingOfferId(null);
       setOfferRate('');
       setOfferMin('');
       setOfferMax('');
       setOfferFeeNote('');
       await loadOffers();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleEditOffer = (offer: Offer) => {
+    setAddingOffer(true);
+    setEditingOfferId(offer.id);
+    setOfferFrom(offer.fromCurrency);
+    setOfferTo(offer.toCurrency);
+    setOfferDirection(offer.direction);
+    setOfferRate(String(offer.rate ?? ''));
+    setOfferMin(offer.minAmount ? String(offer.minAmount) : '');
+    setOfferMax(offer.maxAmount ? String(offer.maxAmount) : '');
+    setOfferFeeNote(offer.feeNote ? String(offer.feeNote) : '');
+  };
+
+  const resetOfferForm = () => {
+    setAddingOffer(false);
+    setEditingOfferId(null);
+    setOfferRate('');
+    setOfferMin('');
+    setOfferMax('');
+    setOfferFeeNote('');
+  };
+
+  const handleSaveBusiness = async () => {
+    if (!businessId) return;
+    if (editBusinessName.trim().length < 2) {
+      Alert.alert('Invalid name', 'Business name is required');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await apiClient.updateBusiness(businessId, {
+        name: editBusinessName.trim(),
+        description: editBusinessDescription.trim()
+          ? editBusinessDescription.trim()
+          : '',
+        phone: editBusinessPhone.trim() ? editBusinessPhone.trim() : '',
+        whatsapp: editBusinessWhatsapp.trim() ? editBusinessWhatsapp.trim() : '',
+        website: editBusinessWebsite.trim() ? editBusinessWebsite.trim() : '',
+      });
+      setEditingBusiness(false);
+      await loadBusiness();
+      Alert.alert('Saved', 'Business updated (may require re-approval)');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleSaveBranch = async () => {
+    if (!selectedBranchId) return;
+    if (editBranchCity.trim().length < 2 || editBranchAddress.trim().length < 2) {
+      Alert.alert('Missing info', 'Branch city and address are required');
+      return;
+    }
+
+    const parsedLat =
+      editBranchLat.trim().length === 0 ? undefined : Number(editBranchLat.trim());
+    const parsedLng =
+      editBranchLng.trim().length === 0 ? undefined : Number(editBranchLng.trim());
+    if (parsedLat !== undefined && !Number.isFinite(parsedLat)) {
+      Alert.alert('Invalid latitude', 'Latitude must be a number');
+      return;
+    }
+    if (parsedLng !== undefined && !Number.isFinite(parsedLng)) {
+      Alert.alert('Invalid longitude', 'Longitude must be a number');
+      return;
+    }
+
+    if (editBranchHoursJson.trim()) {
+      try {
+        JSON.parse(editBranchHoursJson.trim());
+      } catch {
+        Alert.alert('Invalid hours JSON', 'hoursJson must be valid JSON');
+        return;
+      }
+    }
+
+    setBusy(true);
+    setError(null);
+    try {
+      await apiClient.updateBranch(selectedBranchId, {
+        city: editBranchCity.trim(),
+        address: editBranchAddress.trim(),
+        lat: parsedLat,
+        lng: parsedLng,
+        timeZone: editBranchTimeZone.trim() ? editBranchTimeZone.trim() : '',
+        hoursJson: editBranchHoursJson.trim() ? editBranchHoursJson.trim() : '',
+        isActive: editBranchIsActive,
+      });
+      setEditingBranch(false);
+      await loadBusiness();
+      Alert.alert('Saved', 'Branch updated');
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -269,27 +426,57 @@ export default function BusinessDetailScreen() {
 
             <ThemedButton
               title={addingOffer ? 'Cancel' : 'Add / Update Offer'}
-              onPress={() => setAddingOffer((v) => !v)}
+              onPress={() => {
+                if (addingOffer) {
+                  resetOfferForm();
+                } else {
+                  setAddingOffer(true);
+                }
+              }}
               fullWidth
             />
 
             {addingOffer ? (
               <ThemedView style={{ gap: 10 }}>
-                <CurrencySelector placeholder="From" value={offerFrom} onChange={setOfferFrom} />
-                <CurrencySelector placeholder="To" value={offerTo} onChange={setOfferTo} />
-                <SegmentedControl
-                  value={offerDirection}
-                  options={[
-                    { value: 'buy', label: 'Buy' },
-                    { value: 'sell', label: 'Sell' },
-                  ]}
-                  onChange={(v) => setOfferDirection(v as any)}
-                />
+                {editingOfferId ? (
+                  <ThemedText style={{ opacity: 0.75 }}>
+                    Editing: {offerFrom} → {offerTo} ({offerDirection})
+                  </ThemedText>
+                ) : (
+                  <>
+                    <CurrencySelector placeholder="From" value={offerFrom} onChange={setOfferFrom} />
+                    <CurrencySelector placeholder="To" value={offerTo} onChange={setOfferTo} />
+                    <SegmentedControl
+                      value={offerDirection}
+                      options={[
+                        { value: 'buy', label: 'Buy' },
+                        { value: 'sell', label: 'Sell' },
+                      ]}
+                      onChange={(v) => setOfferDirection(v as any)}
+                    />
+                  </>
+                )}
                 <ThemedInput placeholder="Rate" keyboardType="numeric" value={offerRate} onChangeText={setOfferRate} />
                 <ThemedInput placeholder="Min amount (optional)" keyboardType="numeric" value={offerMin} onChangeText={setOfferMin} />
                 <ThemedInput placeholder="Max amount (optional)" keyboardType="numeric" value={offerMax} onChangeText={setOfferMax} />
                 <ThemedInput placeholder="Fee note (optional)" value={offerFeeNote} onChangeText={setOfferFeeNote} />
-                <ThemedButton title={busy ? 'Saving...' : 'Save Offer'} onPress={handleUpsertOffer} disabled={busy || !selectedBranchId} />
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <ThemedButton
+                    title={busy ? 'Saving...' : editingOfferId ? 'Update Offer' : 'Save Offer'}
+                    onPress={handleUpsertOffer}
+                    disabled={busy || !selectedBranchId}
+                    style={{ flex: 1 }}
+                  />
+                  {editingOfferId ? (
+                    <ThemedButton
+                      title="Clear"
+                      variant="secondary"
+                      onPress={resetOfferForm}
+                      disabled={busy}
+                      style={{ flex: 1 }}
+                    />
+                  ) : null}
+                </View>
               </ThemedView>
             ) : null}
 
@@ -305,7 +492,11 @@ export default function BusinessDetailScreen() {
                     {o.maxAmount ? ` • max ${o.maxAmount}` : ''}
                   </ThemedText>
                   {o.feeNote ? <ThemedText style={{ opacity: 0.75 }}>{o.feeNote}</ThemedText> : null}
+                  <ThemedText style={{ opacity: 0.65 }}>
+                    Updated: {formatTimestamp(o.updatedAt)}
+                  </ThemedText>
                   <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <ThemedButton title="Edit" variant="secondary" onPress={() => handleEditOffer(o)} disabled={busy} />
                     <ThemedButton title="Delete" variant="secondary" onPress={() => handleDeleteOffer(o.id)} disabled={busy} />
                   </View>
                 </AppCard>
@@ -336,7 +527,7 @@ export default function BusinessDetailScreen() {
                     {l?.branch ? `${l.branch.city} • ${l.branch.address}` : ''}
                   </ThemedText>
                   {l?.createdAt ? (
-                    <ThemedText style={{ opacity: 0.65 }}>{String(l.createdAt)}</ThemedText>
+                    <ThemedText style={{ opacity: 0.65 }}>{formatTimestamp(String(l.createdAt))}</ThemedText>
                   ) : null}
                 </AppCard>
               ))}
@@ -353,6 +544,60 @@ export default function BusinessDetailScreen() {
             <ThemedText style={{ opacity: 0.75 }}>
               Editing business details triggers re-approval if currently active.
             </ThemedText>
+            <ThemedButton
+              title={editingBusiness ? 'Cancel Edit' : 'Edit Business'}
+              variant="secondary"
+              onPress={() => setEditingBusiness((v) => !v)}
+              disabled={busy}
+            />
+            {editingBusiness ? (
+              <ThemedView style={{ gap: 10 }}>
+                <ThemedInput placeholder="Business name" value={editBusinessName} onChangeText={setEditBusinessName} />
+                <ThemedInput
+                  placeholder="Description"
+                  value={editBusinessDescription}
+                  onChangeText={setEditBusinessDescription}
+                  multiline
+                />
+                <ThemedInput placeholder="Phone" value={editBusinessPhone} onChangeText={setEditBusinessPhone} keyboardType="phone-pad" />
+                <ThemedInput placeholder="WhatsApp" value={editBusinessWhatsapp} onChangeText={setEditBusinessWhatsapp} keyboardType="phone-pad" />
+                <ThemedInput placeholder="Website" value={editBusinessWebsite} onChangeText={setEditBusinessWebsite} />
+                <ThemedButton title={busy ? 'Saving...' : 'Save Business'} onPress={handleSaveBusiness} disabled={busy} />
+              </ThemedView>
+            ) : null}
+
+            <ThemedButton
+              title={editingBranch ? 'Cancel Branch Edit' : 'Edit Selected Branch'}
+              variant="secondary"
+              onPress={() => setEditingBranch((v) => !v)}
+              disabled={busy || !selectedBranch}
+            />
+            {editingBranch && selectedBranch ? (
+              <ThemedView style={{ gap: 10 }}>
+                <ThemedText style={{ opacity: 0.75 }}>
+                  Selected: {selectedBranch.city} • {selectedBranch.address}
+                </ThemedText>
+                <ThemedInput placeholder="City" value={editBranchCity} onChangeText={setEditBranchCity} />
+                <ThemedInput placeholder="Address" value={editBranchAddress} onChangeText={setEditBranchAddress} />
+                <ThemedInput placeholder="Latitude (optional)" value={editBranchLat} onChangeText={setEditBranchLat} keyboardType="numeric" />
+                <ThemedInput placeholder="Longitude (optional)" value={editBranchLng} onChangeText={setEditBranchLng} keyboardType="numeric" />
+                <ThemedInput placeholder="Time zone (e.g. Asia/Dubai)" value={editBranchTimeZone} onChangeText={setEditBranchTimeZone} />
+                <ThemedInput
+                  placeholder='Hours JSON (optional). Example: {"weekly":{"mon":[{"start":"09:00","end":"21:00"}]}}'
+                  value={editBranchHoursJson}
+                  onChangeText={setEditBranchHoursJson}
+                  multiline
+                />
+                <ThemedButton
+                  title={editBranchIsActive ? 'Branch Active: ON' : 'Branch Active: OFF'}
+                  variant="secondary"
+                  onPress={() => setEditBranchIsActive((v) => !v)}
+                  disabled={busy}
+                />
+                <ThemedButton title={busy ? 'Saving...' : 'Save Branch'} onPress={handleSaveBranch} disabled={busy} />
+              </ThemedView>
+            ) : null}
+
             <ThemedButton title="Refresh Business" variant="secondary" onPress={loadBusiness} disabled={busy} />
           </AppCard>
         ) : null}
@@ -362,4 +607,3 @@ export default function BusinessDetailScreen() {
     </ParallaxScrollView>
   );
 }
-

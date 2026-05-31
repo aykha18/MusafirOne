@@ -132,25 +132,113 @@ export default function ChatScreen() {
   const contextBorderColor = colorScheme === 'dark' ? '#444' : '#ccc';
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.container} 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={headerHeight}
-    >
+    Platform.OS === 'ios' ? (
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior="padding"
+        keyboardVerticalOffset={headerHeight}
+      >
+        <ThemedView style={styles.container}>
+          {conversation?.matchRequest?.currencyPost && (
+            <View
+              style={[
+                styles.contextBanner,
+                { backgroundColor: contextBackgroundColor, borderBottomColor: contextBorderColor },
+              ]}
+            >
+              <ThemedText style={styles.contextText}>
+                Trading: {conversation.matchRequest.currencyPost.amount}{' '}
+                {conversation.matchRequest.currencyPost.haveCurrency} for{' '}
+                {conversation.matchRequest.currencyPost.needCurrency}
+              </ThemedText>
+            </View>
+          )}
+          {conversation?.parcelRequest && (
+            <View
+              style={[
+                styles.contextBanner,
+                { backgroundColor: contextBackgroundColor, borderBottomColor: contextBorderColor },
+              ]}
+            >
+              <ThemedText style={styles.contextText}>
+                Parcel: {conversation.parcelRequest.itemType} ({conversation.parcelRequest.fromCountry}{' '}
+                ➡️ {conversation.parcelRequest.toCountry})
+              </ThemedText>
+            </View>
+          )}
+
+          <FlatList
+            data={messages}
+            renderItem={renderItem}
+            keyExtractor={(item) => item.id}
+            inverted
+            contentContainerStyle={styles.listContent}
+          />
+          <View
+            style={[
+              styles.inputContainer,
+              {
+                borderTopColor: Colors[colorScheme ?? 'light'].icon,
+                paddingBottom: 12 + insets.bottom,
+              },
+            ]}
+          >
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  color: Colors[colorScheme ?? 'light'].text,
+                  borderColor: Colors[colorScheme ?? 'light'].icon,
+                },
+              ]}
+              value={inputText}
+              onChangeText={setInputText}
+              placeholder="Type a message..."
+              placeholderTextColor="#999"
+              multiline
+            />
+            <TouchableOpacity
+              onPress={handleSend}
+              disabled={!inputText.trim() || sending}
+              style={styles.sendButton}
+            >
+              <IconSymbol
+                name="paperplane.fill"
+                size={24}
+                color={inputText.trim() ? Colors[colorScheme ?? 'light'].tint : '#ccc'}
+              />
+            </TouchableOpacity>
+          </View>
+        </ThemedView>
+      </KeyboardAvoidingView>
+    ) : (
       <ThemedView style={styles.container}>
         {conversation?.matchRequest?.currencyPost && (
-           <View style={[styles.contextBanner, { backgroundColor: contextBackgroundColor, borderBottomColor: contextBorderColor }]}>
-             <ThemedText style={styles.contextText}>
-               Trading: {conversation.matchRequest.currencyPost.amount} {conversation.matchRequest.currencyPost.haveCurrency} for {conversation.matchRequest.currencyPost.needCurrency}
-             </ThemedText>
-           </View>
+          <View
+            style={[
+              styles.contextBanner,
+              { backgroundColor: contextBackgroundColor, borderBottomColor: contextBorderColor },
+            ]}
+          >
+            <ThemedText style={styles.contextText}>
+              Trading: {conversation.matchRequest.currencyPost.amount}{' '}
+              {conversation.matchRequest.currencyPost.haveCurrency} for{' '}
+              {conversation.matchRequest.currencyPost.needCurrency}
+            </ThemedText>
+          </View>
         )}
         {conversation?.parcelRequest && (
-           <View style={[styles.contextBanner, { backgroundColor: contextBackgroundColor, borderBottomColor: contextBorderColor }]}>
-             <ThemedText style={styles.contextText}>
-               Parcel: {conversation.parcelRequest.itemType} ({conversation.parcelRequest.fromCountry} ➡️ {conversation.parcelRequest.toCountry})
-             </ThemedText>
-           </View>
+          <View
+            style={[
+              styles.contextBanner,
+              { backgroundColor: contextBackgroundColor, borderBottomColor: contextBorderColor },
+            ]}
+          >
+            <ThemedText style={styles.contextText}>
+              Parcel: {conversation.parcelRequest.itemType} ({conversation.parcelRequest.fromCountry}{' '}
+              ➡️ {conversation.parcelRequest.toCountry})
+            </ThemedText>
+          </View>
         )}
 
         <FlatList
@@ -170,19 +258,33 @@ export default function ChatScreen() {
           ]}
         >
           <TextInput
-            style={[styles.input, { color: Colors[colorScheme ?? 'light'].text, borderColor: Colors[colorScheme ?? 'light'].icon }]}
+            style={[
+              styles.input,
+              {
+                color: Colors[colorScheme ?? 'light'].text,
+                borderColor: Colors[colorScheme ?? 'light'].icon,
+              },
+            ]}
             value={inputText}
             onChangeText={setInputText}
             placeholder="Type a message..."
             placeholderTextColor="#999"
             multiline
           />
-          <TouchableOpacity onPress={handleSend} disabled={!inputText.trim() || sending} style={styles.sendButton}>
-            <IconSymbol name="paperplane.fill" size={24} color={inputText.trim() ? Colors[colorScheme ?? 'light'].tint : '#ccc'} />
+          <TouchableOpacity
+            onPress={handleSend}
+            disabled={!inputText.trim() || sending}
+            style={styles.sendButton}
+          >
+            <IconSymbol
+              name="paperplane.fill"
+              size={24}
+              color={inputText.trim() ? Colors[colorScheme ?? 'light'].tint : '#ccc'}
+            />
           </TouchableOpacity>
         </View>
       </ThemedView>
-    </KeyboardAvoidingView>
+    )
   );
 }
 

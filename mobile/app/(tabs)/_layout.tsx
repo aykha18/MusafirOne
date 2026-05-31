@@ -14,8 +14,10 @@ export default function TabLayout() {
   const insets = useSafeAreaInsets();
   usePushNotifications();
 
+  const tabBarHeight = 66;
   const tabBarBottom =
     Platform.OS === 'ios' ? 18 : 12 + Math.max(insets.bottom, 24);
+  const scenePaddingBottom = tabBarBottom + tabBarHeight + 12;
 
   return (
     <Tabs
@@ -23,11 +25,15 @@ export default function TabLayout() {
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         tabBarInactiveTintColor: Colors[colorScheme ?? 'light'].tabIconDefault,
         headerShown: false,
+        tabBarHideOnKeyboard: true,
         tabBarButton: HapticTab,
+        sceneContainerStyle: {
+          paddingBottom: scenePaddingBottom,
+        },
         tabBarStyle: {
           backgroundColor: Colors[colorScheme ?? 'light'].background,
           borderTopWidth: 0,
-          height: 66,
+          height: tabBarHeight,
           paddingBottom: 10,
           paddingTop: 10,
           position: 'absolute',

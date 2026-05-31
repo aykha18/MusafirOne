@@ -17,6 +17,7 @@ import { CreateBusinessDto } from './dto/create-business.dto';
 import { CreateBusinessReviewDto } from './dto/create-business-review.dto';
 import { CreateExchangeConfirmationDto } from './dto/create-exchange-confirmation.dto';
 import { CreateExchangeLeadDto } from './dto/create-exchange-lead.dto';
+import { CreateExchangeRateAlertDto } from './dto/create-exchange-rate-alert.dto';
 import { CreateOfferDto } from './dto/create-offer.dto';
 import { ListExchangesDto } from './dto/list-exchanges.dto';
 import { UpdateBranchDto } from './dto/update-branch.dto';
@@ -230,5 +231,26 @@ export class MeExchangeFavoritesController {
     @Param('businessId') businessId: string,
   ) {
     return this.exchangesService.removeExchangeFavorite(req.user.id, businessId);
+  }
+}
+
+@UseGuards(AuthGuard('jwt'))
+@Controller('me/alerts/exchanges')
+export class MeExchangeAlertsController {
+  constructor(private readonly exchangesService: ExchangesService) {}
+
+  @Get()
+  list(@Req() req: AuthenticatedRequest) {
+    return this.exchangesService.listExchangeRateAlerts(req.user.id);
+  }
+
+  @Post()
+  create(@Req() req: AuthenticatedRequest, @Body() dto: CreateExchangeRateAlertDto) {
+    return this.exchangesService.createExchangeRateAlert(req.user.id, dto);
+  }
+
+  @Delete(':id')
+  remove(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.exchangesService.deleteExchangeRateAlert(req.user.id, id);
   }
 }

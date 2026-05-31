@@ -59,6 +59,18 @@ export type FavoriteExchange = {
   favoritedAt: string;
 };
 
+export type ExchangeRateAlert = {
+  id: string;
+  fromCurrency: string;
+  toCurrency: string;
+  direction: 'buy' | 'sell';
+  targetRate: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  lastTriggeredAt?: string | null;
+};
+
 export type ExchangesListResponse = {
   items: ExchangeListItem[];
   query: {
@@ -791,6 +803,28 @@ export class ApiClient {
 
   async removeFavoriteExchange(businessId: string) {
     return this.delete(`/me/favorites/exchanges/${businessId}`);
+  }
+
+  async listExchangeRateAlerts() {
+    return this.get<ExchangeRateAlert[]>('/me/alerts/exchanges');
+  }
+
+  async createExchangeRateAlert(payload: {
+    fromCurrency: string;
+    toCurrency: string;
+    direction: 'buy' | 'sell';
+    targetRate: string;
+    isActive?: boolean;
+  }) {
+    return this.post<ExchangeRateAlert>('/me/alerts/exchanges', {
+      ...payload,
+      isActive:
+        payload.isActive === undefined ? undefined : payload.isActive ? 'true' : 'false',
+    });
+  }
+
+  async deleteExchangeRateAlert(id: string) {
+    return this.delete(`/me/alerts/exchanges/${id}`);
   }
 
   async listMyBusinesses() {

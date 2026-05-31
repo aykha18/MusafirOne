@@ -11,6 +11,7 @@ import { CreateBusinessDto } from './dto/create-business.dto';
 import { CreateBusinessReviewDto } from './dto/create-business-review.dto';
 import { CreateExchangeConfirmationDto } from './dto/create-exchange-confirmation.dto';
 import { CreateExchangeLeadDto } from './dto/create-exchange-lead.dto';
+import { CreateExchangeRateAlertDto } from './dto/create-exchange-rate-alert.dto';
 import { CreateOfferDto } from './dto/create-offer.dto';
 import { ListExchangesDto } from './dto/list-exchanges.dto';
 import { UpdateBranchDto } from './dto/update-branch.dto';
@@ -933,6 +934,79 @@ export class ExchangesService {
       where: { userId, businessId },
     });
     return { ok: true as const, favorited: false as const };
+  }
+
+  async listExchangeRateAlerts(userId: string) {
+    const alerts = await this.prisma.exchangeRateAlert.findMany({
+      where: { userId },
+      orderBy: [{ createdAt: 'desc' }],
+      take: 200,
+    });
+    return alerts.map((a) => ({
+      id: a.id,
+      fromCurrency: a.fromCurrency,
+      toCurrency: a.toCurrency,
+      direction: a.direction,
+      targetRate: a.targetRate.toString(),
+      isActive: a.isActive,
+      createdAt: a.createdAt,
+      updatedAt: a.updatedAt,
+      lastTriggeredAt: a.lastTriggeredAt,
+    }));
+  }
+
+  async createExchangeRateAlert(userId: string, dto: CreateExchangeRateAlertDto) {
+    const targetRate = this.parseDecimalString(dto.targetRate, 'targetRate');
+    if (!targetRate) throw new BadRequestException('targetRate is required');
+
+    const isActive =
+      dto.isActive === undefined
+        ? true
+        : dto.isActive === '1' || dto.isActive === 'true';
+
+    const fromCurrency = dto.fromCurrency.trim().toUpperCase();
+    const toCurrency = dto.toCurrency.trim().toUpperCase();
+
+    const created = await this.prisma.exchangeRateAlert.upsert({
+      where: {
+        userId_fromCurrency_toCurrency_direction_targetRate: {
+          userId,
+          fromCurrency,
+          toCurrency,
+          direction: dto.direction as any,
+          targetRate,
+        },
+      },
+      update: { isActive },
+      create: {
+        userId,
+        fromCurrency,
+        toCurrency,
+        direction: dto.direction as any,
+        targetRate,
+        isActive,
+      },
+    });
+
+    return {
+      id: created.id,
+      fromCurrency: created.fromCurrency,
+      toCurrency: created.toCurrency,
+      direction: created.direction,
+      targetRate: created.targetRate.toString(),
+      isActive: created.isActive,
+      createdAt: created.createdAt,
+      updatedAt: created.updatedAt,
+      lastTriggeredAt: created.lastTriggeredAt,
+    };
+  }
+
+  async deleteExchangeRateAlert(userId: string, id: string) {
+    const result = await this.prisma.exchangeRateAlert.deleteMany({
+      where: { id, userId },
+    });
+    if (result.count === 0) throw new NotFoundException('Alert not found');
+    return { ok: true as const };
   }
 
   async adminListBusinesses(status?: string, type?: string) {

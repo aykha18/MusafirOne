@@ -42,6 +42,7 @@ model User {
   exchangeConfirmations ExchangeConfirmation[]
   businessReviews   BusinessReview[]
   exchangeFavorites ExchangeFavorite[]
+  exchangeRateAlerts ExchangeRateAlert[]
   userDevices        UserDevice[]
   refreshTokens      RefreshToken[]
   stateChangeLogs    StateChangeLog[]       @relation("ChangedByUser")
@@ -286,6 +287,27 @@ model ExchangeFavorite {
   @@unique([userId, businessId])
   @@index([userId])
   @@index([businessId])
+  @@index([createdAt])
+}
+
+model ExchangeRateAlert {
+  id          String               @id @default(uuid())
+  userId      String
+  fromCurrency String
+  toCurrency  String
+  direction   ExchangeOfferDirection
+  targetRate  Decimal
+  isActive    Boolean              @default(true)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  lastTriggeredAt DateTime?
+
+  user        User                 @relation(fields: [userId], references: [id])
+
+  @@unique([userId, fromCurrency, toCurrency, direction, targetRate])
+  @@index([userId])
+  @@index([fromCurrency, toCurrency])
+  @@index([isActive])
   @@index([createdAt])
 }
 

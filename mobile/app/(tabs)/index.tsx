@@ -204,6 +204,9 @@ export default function HomeScreen() {
   const [dashboardItems, setDashboardItems] = useState<
     { key: string; title: string; subtitle: string; badge?: string; route?: string }[]
   >([]);
+  const appName =
+    String((Constants as any)?.expoConfig?.name ?? (Constants as any)?.manifest?.name ?? '').trim() ||
+    'MusafirOne';
 
   const extra = ((Constants as any)?.expoConfig?.extra ??
     (Constants as any)?.easConfig?.extra ??
@@ -373,7 +376,7 @@ export default function HomeScreen() {
     <ThemedView style={[styles.screen, { backgroundColor: Colors[colorScheme].surface }]}>
       {isLoggedIn ? (
         <>
-          <AppHeader title="MuhajirOne" subtitle={verificationLabel} rightIconName="bell" onPressRightIcon={() => {}} />
+          <AppHeader title={appName} subtitle={verificationLabel} rightIconName="bell" onPressRightIcon={() => {}} />
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             <AppCard style={[styles.trustCard, { backgroundColor: '#0B2A6F', borderColor: 'transparent' }]}>
               <View style={styles.trustTopRow}>
@@ -490,7 +493,7 @@ export default function HomeScreen() {
       ) : (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <ThemedText type="title" style={{ fontSize: 30, lineHeight: 34 }}>
-            MuhajirOne
+            {appName}
           </ThemedText>
           <ThemedText style={{ opacity: 0.85, marginTop: 6 }}>
             Sign in to exchange currency, send parcels, and build trust.

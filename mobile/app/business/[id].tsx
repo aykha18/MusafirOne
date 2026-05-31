@@ -58,6 +58,21 @@ export default function BusinessDetailScreen() {
   const [editBranchTimeZone, setEditBranchTimeZone] = useState('');
   const [editBranchHoursJson, setEditBranchHoursJson] = useState('');
   const [editBranchIsActive, setEditBranchIsActive] = useState(true);
+  const [hoursMode, setHoursMode] = useState<'form' | 'raw'>('form');
+  const [hoursForm, setHoursForm] = useState<
+    Record<
+      'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun',
+      { enabled: boolean; start: string; end: string }
+    >
+  >({
+    mon: { enabled: true, start: '09:00', end: '21:00' },
+    tue: { enabled: true, start: '09:00', end: '21:00' },
+    wed: { enabled: true, start: '09:00', end: '21:00' },
+    thu: { enabled: true, start: '09:00', end: '21:00' },
+    fri: { enabled: true, start: '14:00', end: '21:00' },
+    sat: { enabled: true, start: '09:00', end: '21:00' },
+    sun: { enabled: true, start: '09:00', end: '21:00' },
+  });
 
   const [addingOffer, setAddingOffer] = useState(false);
   const [editingOfferId, setEditingOfferId] = useState<string | null>(null);
@@ -77,11 +92,34 @@ export default function BusinessDetailScreen() {
     return business.branches[0] ?? null;
   }, [business, selectedBranchId]);
 
+  const hoursDays: Array<{ key: keyof typeof hoursForm; label: string }> = [
+    { key: 'mon', label: 'Mon' },
+    { key: 'tue', label: 'Tue' },
+    { key: 'wed', label: 'Wed' },
+    { key: 'thu', label: 'Thu' },
+    { key: 'fri', label: 'Fri' },
+    { key: 'sat', label: 'Sat' },
+    { key: 'sun', label: 'Sun' },
+  ];
+
   const formatTimestamp = (value: string | null | undefined) => {
     if (!value) return '';
     const d = new Date(value);
     if (Number.isNaN(d.getTime())) return String(value);
     return d.toLocaleString();
+  };
+
+  const buildHoursJsonFromForm = () => {
+    const weekly: Record<string, Array<{ start: string; end: string }>> = {};
+    for (const d of hoursDays) {
+      const v = hoursForm[d.key];
+      if (v.enabled && v.start.trim() && v.end.trim()) {
+        weekly[d.key] = [{ start: v.start.trim(), end: v.end.trim() }];
+      } else {
+        weekly[d.key] = [];
+      }
+    }
+    return JSON.stringify({ weekly });
   };
 
   const loadBusiness = async () => {
@@ -160,6 +198,31 @@ export default function BusinessDetailScreen() {
     setEditBranchTimeZone(selectedBranch.timeZone ?? '');
     setEditBranchHoursJson(selectedBranch.hoursJson ?? '');
     setEditBranchIsActive(!!selectedBranch.isActive);
+
+    let parsed: any = null;
+    try {
+      parsed = selectedBranch.hoursJson ? JSON.parse(selectedBranch.hoursJson) : null;
+    } catch {
+      parsed = null;
+    }
+    const weekly = parsed?.weekly ?? parsed;
+    if (weekly && typeof weekly === 'object') {
+      setHoursForm((prev) => {
+        const next = { ...prev };
+        for (const d of hoursDays) {
+          const intervals = weekly?.[d.key];
+          if (Array.isArray(intervals) && intervals.length > 0) {
+            const first = intervals[0];
+            const start = typeof first?.start === 'string' ? first.start : '';
+            const end = typeof first?.end === 'string' ? first.end : '';
+            next[d.key] = { enabled: true, start, end };
+          } else {
+            next[d.key] = { ...next[d.key], enabled: false };
+          }
+        }
+        return next;
+      });
+    }
   }, [selectedBranch?.id]);
 
   const handleAddBranch = async () => {
@@ -298,9 +361,16 @@ export default function BusinessDetailScreen() {
       return;
     }
 
-    if (editBranchHoursJson.trim()) {
+    const hoursJsonToSave =
+      hoursMode === 'form'
+        ? buildHoursJsonFromForm()
+        : editBranchHoursJson.trim()
+          ? editBranchHoursJson.trim()
+          : '';
+
+    if (hoursJsonToSave.trim()) {
       try {
-        JSON.parse(editBranchHoursJson.trim());
+        JSON.parse(hoursJsonToSave.trim());
       } catch {
         Alert.alert('Invalid hours JSON', 'hoursJson must be valid JSON');
         return;
@@ -316,7 +386,7 @@ export default function BusinessDetailScreen() {
         lat: parsedLat,
         lng: parsedLng,
         timeZone: editBranchTimeZone.trim() ? editBranchTimeZone.trim() : '',
-        hoursJson: editBranchHoursJson.trim() ? editBranchHoursJson.trim() : '',
+        hoursJson: hoursJsonToSave.trim() ? hoursJsonToSave.trim() : '',
         isActive: editBranchIsActive,
       });
       setEditingBranch(false);
@@ -582,12 +652,81 @@ export default function BusinessDetailScreen() {
                 <ThemedInput placeholder="Latitude (optional)" value={editBranchLat} onChangeText={setEditBranchLat} keyboardType="numeric" />
                 <ThemedInput placeholder="Longitude (optional)" value={editBranchLng} onChangeText={setEditBranchLng} keyboardType="numeric" />
                 <ThemedInput placeholder="Time zone (e.g. Asia/Dubai)" value={editBranchTimeZone} onChangeText={setEditBranchTimeZone} />
-                <ThemedInput
-                  placeholder='Hours JSON (optional). Example: {"weekly":{"mon":[{"start":"09:00","end":"21:00"}]}}'
-                  value={editBranchHoursJson}
-                  onChangeText={setEditBranchHoursJson}
-                  multiline
+                <SegmentedControl
+                  value={hoursMode}
+                  options={[
+                    { value: 'form', label: 'Hours Form' },
+                    { value: 'raw', label: 'Raw JSON' },
+                  ]}
+                  onChange={(v) => setHoursMode(v as any)}
                 />
+                {hoursMode === 'form' ? (
+                  <ThemedView style={{ gap: 8 }}>
+                    {hoursDays.map((d) => {
+                      const v = hoursForm[d.key];
+                      return (
+                        <AppCard key={d.key} variant="soft" style={{ padding: 10, gap: 8 }}>
+                          <ThemedText type="defaultSemiBold">{d.label}</ThemedText>
+                          <View style={{ flexDirection: 'row', gap: 10 }}>
+                            <ThemedButton
+                              title={v.enabled ? 'Open' : 'Closed'}
+                              variant="secondary"
+                              onPress={() =>
+                                setHoursForm((prev) => ({
+                                  ...prev,
+                                  [d.key]: { ...prev[d.key], enabled: !prev[d.key].enabled },
+                                }))
+                              }
+                              disabled={busy}
+                              style={{ flex: 1 }}
+                            />
+                            <ThemedInput
+                              placeholder="Start (HH:MM)"
+                              value={v.start}
+                              onChangeText={(t) =>
+                                setHoursForm((prev) => ({
+                                  ...prev,
+                                  [d.key]: { ...prev[d.key], start: t },
+                                }))
+                              }
+                              editable={v.enabled}
+                              style={{ flex: 1 }}
+                            />
+                            <ThemedInput
+                              placeholder="End (HH:MM)"
+                              value={v.end}
+                              onChangeText={(t) =>
+                                setHoursForm((prev) => ({
+                                  ...prev,
+                                  [d.key]: { ...prev[d.key], end: t },
+                                }))
+                              }
+                              editable={v.enabled}
+                              style={{ flex: 1 }}
+                            />
+                          </View>
+                        </AppCard>
+                      );
+                    })}
+                    <ThemedButton
+                      title="Copy as JSON"
+                      variant="secondary"
+                      onPress={() => {
+                        const json = buildHoursJsonFromForm();
+                        setEditBranchHoursJson(json);
+                        setHoursMode('raw');
+                      }}
+                      disabled={busy}
+                    />
+                  </ThemedView>
+                ) : (
+                  <ThemedInput
+                    placeholder='Hours JSON (optional). Example: {"weekly":{"mon":[{"start":"09:00","end":"21:00"}]}}'
+                    value={editBranchHoursJson}
+                    onChangeText={setEditBranchHoursJson}
+                    multiline
+                  />
+                )}
                 <ThemedButton
                   title={editBranchIsActive ? 'Branch Active: ON' : 'Branch Active: OFF'}
                   variant="secondary"

@@ -3,6 +3,7 @@ import {
   FlatList,
   TextInput,
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
   View,
   TouchableOpacity,
@@ -38,10 +39,36 @@ export default function ChatScreen() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [myId, setMyId] = useState<string | null>(null);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const listRef = useRef<FlatList<Message> | null>(null);
+  const isNearBottomRef = useRef(true);
+
+  const scrollToLatest = (animated: boolean) => {
+    requestAnimationFrame(() => {
+      listRef.current?.scrollToOffset({ offset: 0, animated });
+    });
+    setTimeout(() => {
+      listRef.current?.scrollToOffset({ offset: 0, animated });
+    }, 60);
+  };
   const myMessageBackgroundColor =
     colorScheme === 'dark'
       ? Colors.light.tint
       : Colors[colorScheme ?? 'light'].tint;
+
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', () => {
+      setKeyboardVisible(true);
+      scrollToLatest(true);
+    });
+    const hide = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardVisible(false);
+    });
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
 
   useEffect(() => {
     navigation.setOptions({ title: 'Chat' });
@@ -54,7 +81,13 @@ export default function ChatScreen() {
           apiClient.getConversation(conversationId),
         ]);
         setMyId(me.id);
-        setMessages([...msgs].reverse()); 
+        const sorted = Array.isArray(msgs)
+          ? [...msgs].sort(
+              (a, b) =>
+                new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+            )
+          : [];
+        setMessages(sorted);
         setConversation(conv);
 
         // Update title with other user's name
@@ -67,12 +100,15 @@ export default function ChatScreen() {
           socket.on('newMessage', (msg: SocketMessage) => {
             if (!msg.conversationId || msg.conversationId === conversationId) {
               setMessages((prev) => [msg, ...prev]);
+              if (isNearBottomRef.current) {
+                scrollToLatest(true);
+              }
             }
           });
-    } } catch (e) {
-      // console.error(e);
+    } } catch {
       } finally {
         setLoading(false);
+        scrollToLatest(false);
       }
     };
     
@@ -84,7 +120,7 @@ export default function ChatScreen() {
         socket.off('newMessage');
       }
     };
-  }, [conversationId]);
+  }, [conversationId, navigation]);
 
   const handleSend = async () => {
     if (!inputText.trim() || sending) return;
@@ -96,6 +132,7 @@ export default function ChatScreen() {
     try {
       const msg = await apiClient.sendMessage(conversationId, content);
       setMessages((prev) => [msg, ...prev]);
+      scrollToLatest(true);
     } catch (e) {
       console.error(e);
       setInputText(content);
@@ -132,86 +169,11 @@ export default function ChatScreen() {
   const contextBorderColor = colorScheme === 'dark' ? '#444' : '#ccc';
 
   return (
-    Platform.OS === 'ios' ? (
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior="padding"
-        keyboardVerticalOffset={headerHeight}
-      >
-        <ThemedView style={styles.container}>
-          {conversation?.matchRequest?.currencyPost && (
-            <View
-              style={[
-                styles.contextBanner,
-                { backgroundColor: contextBackgroundColor, borderBottomColor: contextBorderColor },
-              ]}
-            >
-              <ThemedText style={styles.contextText}>
-                Trading: {conversation.matchRequest.currencyPost.amount}{' '}
-                {conversation.matchRequest.currencyPost.haveCurrency} for{' '}
-                {conversation.matchRequest.currencyPost.needCurrency}
-              </ThemedText>
-            </View>
-          )}
-          {conversation?.parcelRequest && (
-            <View
-              style={[
-                styles.contextBanner,
-                { backgroundColor: contextBackgroundColor, borderBottomColor: contextBorderColor },
-              ]}
-            >
-              <ThemedText style={styles.contextText}>
-                Parcel: {conversation.parcelRequest.itemType} ({conversation.parcelRequest.fromCountry}{' '}
-                ➡️ {conversation.parcelRequest.toCountry})
-              </ThemedText>
-            </View>
-          )}
-
-          <FlatList
-            data={messages}
-            renderItem={renderItem}
-            keyExtractor={(item) => item.id}
-            inverted
-            contentContainerStyle={styles.listContent}
-          />
-          <View
-            style={[
-              styles.inputContainer,
-              {
-                borderTopColor: Colors[colorScheme ?? 'light'].icon,
-                paddingBottom: 12 + insets.bottom,
-              },
-            ]}
-          >
-            <TextInput
-              style={[
-                styles.input,
-                {
-                  color: Colors[colorScheme ?? 'light'].text,
-                  borderColor: Colors[colorScheme ?? 'light'].icon,
-                },
-              ]}
-              value={inputText}
-              onChangeText={setInputText}
-              placeholder="Type a message..."
-              placeholderTextColor="#999"
-              multiline
-            />
-            <TouchableOpacity
-              onPress={handleSend}
-              disabled={!inputText.trim() || sending}
-              style={styles.sendButton}
-            >
-              <IconSymbol
-                name="paperplane.fill"
-                size={24}
-                color={inputText.trim() ? Colors[colorScheme ?? 'light'].tint : '#ccc'}
-              />
-            </TouchableOpacity>
-          </View>
-        </ThemedView>
-      </KeyboardAvoidingView>
-    ) : (
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={headerHeight}
+    >
       <ThemedView style={styles.container}>
         {conversation?.matchRequest?.currencyPost && (
           <View
@@ -235,25 +197,31 @@ export default function ChatScreen() {
             ]}
           >
             <ThemedText style={styles.contextText}>
-              Parcel: {conversation.parcelRequest.itemType} ({conversation.parcelRequest.fromCountry}{' '}
-              ➡️ {conversation.parcelRequest.toCountry})
+              Parcel: {conversation.parcelRequest.itemType} ({conversation.parcelRequest.fromCountry} ➡️{' '}
+              {conversation.parcelRequest.toCountry})
             </ThemedText>
           </View>
         )}
 
         <FlatList
+          ref={listRef}
           data={messages}
           renderItem={renderItem}
           keyExtractor={(item) => item.id}
           inverted
           contentContainerStyle={styles.listContent}
+          keyboardShouldPersistTaps="handled"
+          scrollEventThrottle={16}
+          onScroll={(e) => {
+            isNearBottomRef.current = e.nativeEvent.contentOffset.y < 80;
+          }}
         />
         <View
           style={[
             styles.inputContainer,
             {
               borderTopColor: Colors[colorScheme ?? 'light'].icon,
-              paddingBottom: 12 + insets.bottom,
+              paddingBottom: keyboardVisible ? 8 : 12 + insets.bottom,
             },
           ]}
         >
@@ -270,6 +238,7 @@ export default function ChatScreen() {
             placeholder="Type a message..."
             placeholderTextColor="#999"
             multiline
+            onFocus={() => scrollToLatest(true)}
           />
           <TouchableOpacity
             onPress={handleSend}
@@ -284,7 +253,7 @@ export default function ChatScreen() {
           </TouchableOpacity>
         </View>
       </ThemedView>
-    )
+    </KeyboardAvoidingView>
   );
 }
 

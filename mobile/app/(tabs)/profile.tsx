@@ -1,6 +1,6 @@
 import { StyleSheet, View, Alert, ActivityIndicator, ScrollView, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
 import Constants from 'expo-constants';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -33,6 +33,8 @@ export default function ProfileScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const insets = useSafeAreaInsets();
+  const scrollRef = useRef<ScrollView | null>(null);
+  const [editProfileY, setEditProfileY] = useState<number | null>(null);
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<MyStats | null>(null);
@@ -60,6 +62,20 @@ export default function ProfileScreen() {
     void loadDocuments();
     void loadStats();
   }, []);
+
+  useEffect(() => {
+    if (panel !== 'edit_profile') return;
+    requestAnimationFrame(() => {
+      if (typeof editProfileY === 'number') {
+        scrollRef.current?.scrollTo({
+          y: Math.max(0, editProfileY - UI.spacing.md),
+          animated: true,
+        });
+      } else {
+        scrollRef.current?.scrollToEnd({ animated: true });
+      }
+    });
+  }, [panel, editProfileY]);
 
   const loadProfile = async () => {
     try {
@@ -287,6 +303,7 @@ export default function ProfileScreen() {
   return (
     <ThemedView style={[styles.container, { backgroundColor: Colors[colorScheme ?? 'light'].surface }]}>
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={[styles.scrollContent, { paddingBottom: UI.spacing.lg + insets.bottom }]}
         showsVerticalScrollIndicator={false}
       >
@@ -570,34 +587,40 @@ export default function ProfileScreen() {
             </Pressable>
 
             {panel === 'edit_profile' ? (
-              <AppCard style={[styles.panelCard, { marginTop: UI.spacing.md }]}>
-                <ThemedText type="defaultSemiBold" style={{ fontSize: 16 }}>Edit Profile</ThemedText>
-                <View style={{ gap: 10, marginTop: 12 }}>
-                  <ThemedInput value={editFullName} onChangeText={setEditFullName} placeholder="Full name" />
-                  <CitySelector value={editCity} onChange={setEditCity} placeholder="Select City" />
-                  <ThemedInput value={editCorridor} onChangeText={setEditCorridor} placeholder="Corridor (e.g., South Asia)" />
-                  <AppCard variant="soft" style={{ padding: 12, gap: 10 }}>
-                    <ThemedText type="defaultSemiBold">Register as Business</ThemedText>
-                    <ThemedText style={{ opacity: 0.75 }}>
-                      Currency agencies are created under Business Dashboard (not your personal profile).
-                    </ThemedText>
-                    <ThemedButton
-                      title="Open Business Dashboard"
-                      variant="secondary"
-                      onPress={() => {
-                        setPanel('none');
-                        setEditingDetails(false);
-                        router.push('/business');
-                      }}
-                      fullWidth
-                    />
-                  </AppCard>
-                  <View style={styles.actionsRow}>
-                    <ThemedButton title={savingDetails ? 'Saving…' : 'Save'} onPress={handleSaveDetails} disabled={savingDetails} style={{ flex: 1 }} />
-                    <ThemedButton title="Cancel" variant="secondary" onPress={() => { setEditingDetails(false); setPanel('none'); }} disabled={savingDetails} style={{ flex: 1 }} />
+              <View
+                onLayout={(e) => {
+                  setEditProfileY(e.nativeEvent.layout.y);
+                }}
+              >
+                <AppCard style={[styles.panelCard, { marginTop: UI.spacing.md }]}>
+                  <ThemedText type="defaultSemiBold" style={{ fontSize: 16 }}>Edit Profile</ThemedText>
+                  <View style={{ gap: 10, marginTop: 12 }}>
+                    <ThemedInput value={editFullName} onChangeText={setEditFullName} placeholder="Full name" />
+                    <CitySelector value={editCity} onChange={setEditCity} placeholder="Select City" />
+                    <ThemedInput value={editCorridor} onChangeText={setEditCorridor} placeholder="Corridor (e.g., South Asia)" />
+                    <AppCard variant="soft" style={{ padding: 12, gap: 10 }}>
+                      <ThemedText type="defaultSemiBold">Register as Business</ThemedText>
+                      <ThemedText style={{ opacity: 0.75 }}>
+                        Currency agencies are created under Business Dashboard (not your personal profile).
+                      </ThemedText>
+                      <ThemedButton
+                        title="Open Business Dashboard"
+                        variant="secondary"
+                        onPress={() => {
+                          setPanel('none');
+                          setEditingDetails(false);
+                          router.push('/business');
+                        }}
+                        fullWidth
+                      />
+                    </AppCard>
+                    <View style={styles.actionsRow}>
+                      <ThemedButton title={savingDetails ? 'Saving…' : 'Save'} onPress={handleSaveDetails} disabled={savingDetails} style={{ flex: 1 }} />
+                      <ThemedButton title="Cancel" variant="secondary" onPress={() => { setEditingDetails(false); setPanel('none'); }} disabled={savingDetails} style={{ flex: 1 }} />
+                    </View>
                   </View>
-                </View>
-              </AppCard>
+                </AppCard>
+              </View>
             ) : null}
 
             {panel === 'verify_identity' ? (

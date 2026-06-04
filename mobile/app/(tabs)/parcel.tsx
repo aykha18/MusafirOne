@@ -100,7 +100,6 @@ export default function ParcelScreen() {
   
   // Dynamic styles
   const cardBackgroundColor = isDark ? '#1E1E1E' : '#fff';
-  const badgeBackgroundColor = isDark ? '#3A3A3C' : '#e0e0e0';
   const borderColor = isDark ? '#333' : '#e0e0e0';
 
   const [viewMode, setViewMode] = useState<'trips' | 'requests'>('trips');
@@ -1099,24 +1098,42 @@ export default function ParcelScreen() {
     
     const matchedTrip = item.tripId ? trips.find(t => t.id === item.tripId) : null;
     const chatTargetId = isMyRequest ? matchedTrip?.userId : item.userId;
+    const displayName = item.user?.fullName || (isMyRequest ? 'You' : 'User');
+    const isVerified = (item.user?.verificationLevel ?? 0) >= 2;
+    const badge = (() => {
+      if (isMyRequest) return { label: 'My Request', bg: 'rgba(77, 163, 255, 0.12)', color: '#1b8f3a' };
+      if (isMatched) return { label: 'Matched', bg: 'rgba(77, 163, 255, 0.14)', color: Colors[colorScheme ?? 'light'].tint };
+      if (isPending) return { label: 'Pending', bg: 'rgba(245, 158, 11, 0.14)', color: '#F59E0B' };
+      if (isCompleted) return { label: 'Completed', bg: 'rgba(34, 209, 139, 0.12)', color: '#1b8f3a' };
+      return null;
+    })();
 
     return (
-      <ThemedView style={[styles.card, { backgroundColor: cardBackgroundColor, borderColor }]}>
-        <View style={styles.cardHeader}>
-          <ThemedText type="defaultSemiBold">{item.fromCountry} ➡️ {item.toCountry}</ThemedText>
-          {isMyRequest ? (
-             <ThemedText style={[styles.badge, { backgroundColor: badgeBackgroundColor }]}>My Request</ThemedText>
-          ) : isMatched ? (
-             <ThemedText style={[styles.badge, { backgroundColor: Colors.light.tint }]}>Matched</ThemedText>
-          ) : isPending ? (
-             <ThemedText style={[styles.badge, { backgroundColor: '#ffd700', color: '#000' }]}>Pending</ThemedText>
-          ) : isCompleted ? (
-             <ThemedText style={[styles.badge, { backgroundColor: badgeBackgroundColor }]}>Completed</ThemedText>
+      <AppCard style={styles.requestCard}>
+        <View style={styles.requestHeaderRow}>
+          <View style={styles.requestAvatar}>
+            <ThemedText type="defaultSemiBold" style={{ color: '#fff' }}>
+              {displayName.charAt(0).toUpperCase()}
+            </ThemedText>
+          </View>
+          <View style={{ flex: 1 }}>
+            <ThemedText type="defaultSemiBold" numberOfLines={1}>
+              {displayName}{isVerified ? ' ✓' : ''}
+            </ThemedText>
+            <ThemedText style={styles.requestMeta} numberOfLines={1}>
+              {item.fromCountry} → {item.toCountry} • {item.itemType} • {item.weightKg} kg
+            </ThemedText>
+          </View>
+          {badge ? (
+            <View style={[styles.requestStatusPill, { backgroundColor: badge.bg }]}>
+              <ThemedText style={[styles.requestStatusText, { color: badge.color }]}>
+                {badge.label}
+              </ThemedText>
+            </View>
           ) : null}
         </View>
-        <ThemedText>Item: {item.itemType}</ThemedText>
-        <ThemedText>Weight: {item.weightKg} kg</ThemedText>
-        <ThemedText>
+
+        <ThemedText style={styles.requestDetail}>
           Window: {new Date(item.flexibleFromDate).toLocaleDateString()} -{' '}
           {new Date(item.flexibleToDate).toLocaleDateString()}
         </ThemedText>
@@ -1281,7 +1298,7 @@ export default function ParcelScreen() {
              />
            </View>
         )}
-      </ThemedView>
+      </AppCard>
     );
   };
 
@@ -2071,6 +2088,45 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+  },
+  requestCard: {
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    gap: 10,
+  },
+  requestHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  requestAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F08A1A',
+  },
+  requestMeta: {
+    fontSize: 12,
+    lineHeight: 14,
+    opacity: 0.75,
+    marginTop: 4,
+  },
+  requestStatusPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  requestStatusText: {
+    fontSize: 12,
+    lineHeight: 14,
+    fontWeight: '800',
+  },
+  requestDetail: {
+    fontSize: 12,
+    lineHeight: 16,
+    opacity: 0.75,
   },
   travelerCard: {
     paddingVertical: 14,

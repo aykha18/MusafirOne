@@ -6,6 +6,7 @@ import * as WebBrowser from 'expo-web-browser';
 import Constants from 'expo-constants';
 import * as Google from 'expo-auth-session/providers/google';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { apiClient, User } from '@/api/client';
 import { ThemedButton } from '@/components/themed-button';
 import { ThemedInput } from '@/components/themed-input';
@@ -194,6 +195,7 @@ function GoogleSignInEnabled({
 
 export default function HomeScreen() {
   const colorScheme = useColorScheme() ?? 'light';
+  const insets = useSafeAreaInsets();
   const [country, setCountry] = useState({ name: 'United Arab Emirates', code: 'AE', dialCode: '+971' });
   const [localPhone, setLocalPhone] = useState('');
   const [code, setCode] = useState('');
@@ -377,7 +379,10 @@ export default function HomeScreen() {
       {isLoggedIn ? (
         <>
           <AppHeader title={appName} subtitle={verificationLabel} rightIconName="bell" onPressRightIcon={() => {}} />
-          <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            contentContainerStyle={[styles.content, { paddingBottom: UI.spacing.lg + insets.bottom }]}
+            showsVerticalScrollIndicator={false}
+          >
             <AppCard style={[styles.trustCard, { backgroundColor: '#0B2A6F', borderColor: 'transparent' }]}>
               <View style={styles.trustTopRow}>
                 <View style={{ flex: 1 }}>
@@ -491,7 +496,10 @@ export default function HomeScreen() {
           </ScrollView>
         </>
       ) : (
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={[styles.content, { paddingBottom: UI.spacing.lg + insets.bottom }]}
+          showsVerticalScrollIndicator={false}
+        >
           <ThemedText type="title" style={{ fontSize: 30, lineHeight: 34 }}>
             {appName}
           </ThemedText>
@@ -539,7 +547,6 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: UI.spacing.lg,
-    paddingBottom: 90,
   },
   trustCard: {
     padding: UI.spacing.lg,

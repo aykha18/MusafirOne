@@ -1,6 +1,7 @@
 import { StyleSheet, FlatList, View, ActivityIndicator, Pressable } from 'react-native';
 import { useMemo, useState, useCallback } from 'react';
 import { useRouter, useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -15,6 +16,7 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 export default function ChatListScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
+  const insets = useSafeAreaInsets();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -162,6 +164,7 @@ export default function ChatListScreen() {
         onRefresh={handleRefresh}
         contentContainerStyle={[
           styles.listContent,
+          { paddingBottom: UI.spacing.lg + insets.bottom },
           filteredConversations.length === 0 ? styles.emptyContainer : undefined,
         ]}
         ListEmptyComponent={
@@ -210,7 +213,6 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: UI.spacing.lg,
-    paddingBottom: 90,
   },
   centered: {
     flex: 1,

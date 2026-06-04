@@ -171,8 +171,8 @@ export default function ChatScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={headerHeight}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}
     >
       <ThemedView style={styles.container}>
         {conversation?.matchRequest?.currencyPost && (
@@ -221,7 +221,13 @@ export default function ChatScreen() {
             styles.inputContainer,
             {
               borderTopColor: Colors[colorScheme ?? 'light'].icon,
-              paddingBottom: keyboardVisible ? 8 : 12 + insets.bottom,
+              paddingBottom:
+                12 +
+                (Platform.OS === 'android'
+                  ? keyboardVisible
+                    ? 0
+                    : insets.bottom
+                  : insets.bottom),
             },
           ]}
         >

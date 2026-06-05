@@ -4,6 +4,7 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Keyboard,
+  Dimensions,
   Platform,
   View,
   Pressable,
@@ -39,9 +40,11 @@ export default function ChatScreen() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [myId, setMyId] = useState<string | null>(null);
-  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [keyboardOverlayHeight, setKeyboardOverlayHeight] = useState(0);
+  const [composerHeight, setComposerHeight] = useState(0);
   const listRef = useRef<FlatList<Message> | null>(null);
   const isAtBottomRef = useRef(true);
+  const windowHeightRef = useRef(Dimensions.get('window').height);
 
   const scrollToBottom = useCallback((animated: boolean) => {
     requestAnimationFrame(() => {
@@ -71,12 +74,17 @@ export default function ChatScreen() {
       : Colors[colorScheme ?? 'light'].tint;
 
   useEffect(() => {
-    const show = Keyboard.addListener('keyboardDidShow', () => {
-      setKeyboardVisible(true);
+    const show = Keyboard.addListener('keyboardDidShow', (e) => {
+      const before = windowHeightRef.current;
+      const now = Dimensions.get('window').height;
+      const keyboardHeight = e.endCoordinates?.height ?? 0;
+      const resized = before - now > Math.min(120, keyboardHeight / 2);
+      setKeyboardOverlayHeight(resized ? 0 : keyboardHeight);
       if (isAtBottomRef.current) scrollToBottom(true);
     });
     const hide = Keyboard.addListener('keyboardDidHide', () => {
-      setKeyboardVisible(false);
+      setKeyboardOverlayHeight(0);
+      windowHeightRef.current = Dimensions.get('window').height;
     });
     return () => {
       show.remove();
@@ -176,8 +184,8 @@ export default function ChatScreen() {
 
   const contextBackgroundColor = colorScheme === 'dark' ? '#333' : '#f0f0f0';
   const contextBorderColor = colorScheme === 'dark' ? '#444' : '#ccc';
-  const composerPaddingBottom =
-    Platform.OS === 'android' ? (keyboardVisible ? 0 : insets.bottom) : insets.bottom;
+  const listBottomPadding =
+    composerHeight + 12 + insets.bottom + (Platform.OS === 'android' ? keyboardOverlayHeight : 0);
 
   return (
     <SafeAreaView
@@ -232,7 +240,7 @@ export default function ChatScreen() {
             data={messages}
             renderItem={renderItem}
             keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={[styles.listContent, { paddingBottom: listBottomPadding }]}
             keyboardShouldPersistTaps="handled"
             onContentSizeChange={() => {
               if (isAtBottomRef.current) scrollToBottom(false);
@@ -252,10 +260,15 @@ export default function ChatScreen() {
               styles.composer,
               {
                 borderTopColor: Colors[colorScheme ?? 'light'].border,
-                paddingBottom: 10 + composerPaddingBottom,
+                bottom: Platform.OS === 'android' ? keyboardOverlayHeight : 0,
+                paddingBottom: 10 + insets.bottom,
                 backgroundColor: Colors[colorScheme ?? 'light'].background,
               },
             ]}
+            onLayout={(e) => {
+              const h = e.nativeEvent.layout.height;
+              if (h > 0 && h !== composerHeight) setComposerHeight(h);
+            }}
           >
             <View style={[styles.composerInner, { borderColor: Colors[colorScheme ?? 'light'].border }]}>
               <TextInput
@@ -326,6 +339,9 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
   },
   composer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
     paddingHorizontal: 12,
     paddingTop: 10,
     borderTopWidth: StyleSheet.hairlineWidth,

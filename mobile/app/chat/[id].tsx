@@ -45,6 +45,7 @@ export default function ChatScreen() {
   const listRef = useRef<FlatList<Message> | null>(null);
   const isAtBottomRef = useRef(true);
   const forceScrollToBottomRef = useRef(false);
+  const pendingFocusScrollRef = useRef(false);
   const windowHeightRef = useRef(Dimensions.get('window').height);
 
   const scrollToBottom = useCallback((animated: boolean) => {
@@ -90,6 +91,11 @@ export default function ChatScreen() {
       const keyboardHeight = e.endCoordinates?.height ?? 0;
       const resized = before - now > Math.min(120, keyboardHeight / 2);
       setKeyboardOverlayHeight(resized ? 0 : keyboardHeight);
+      if (pendingFocusScrollRef.current) {
+        pendingFocusScrollRef.current = false;
+        requestScrollToBottom(true);
+        return;
+      }
       if (isAtBottomRef.current) scrollToBottom(true);
     });
     const hide = Keyboard.addListener('keyboardDidHide', () => {
@@ -100,7 +106,7 @@ export default function ChatScreen() {
       show.remove();
       hide.remove();
     };
-  }, [scrollToBottom]);
+  }, [scrollToBottom, requestScrollToBottom]);
 
   useEffect(() => {
     navigation.setOptions({ title: 'Chat' });
@@ -156,7 +162,6 @@ export default function ChatScreen() {
     setSending(true);
     const content = inputText.trim();
     setInputText('');
-    requestScrollToBottom(true);
     
     try {
       const msg = await apiClient.sendMessage(conversationId, content);
@@ -295,7 +300,9 @@ export default function ChatScreen() {
                 placeholder="Type a message..."
                 placeholderTextColor={Colors[colorScheme ?? 'light'].tabIconDefault}
                 multiline
-                onFocus={() => requestScrollToBottom(true)}
+                onFocus={() => {
+                  pendingFocusScrollRef.current = true;
+                }}
               />
               <Pressable
                 onPress={handleSend}

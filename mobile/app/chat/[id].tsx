@@ -6,13 +6,13 @@ import {
   Keyboard,
   Platform,
   View,
-  TouchableOpacity,
+  Pressable,
   ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useHeaderHeight } from '@react-navigation/elements';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { apiClient, Message, Conversation } from '@/api/client';
@@ -41,16 +41,30 @@ export default function ChatScreen() {
   const [myId, setMyId] = useState<string | null>(null);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const listRef = useRef<FlatList<Message> | null>(null);
-  const isNearBottomRef = useRef(true);
+  const isAtBottomRef = useRef(true);
 
-  const scrollToLatest = (animated: boolean) => {
+  const scrollToBottom = useCallback((animated: boolean) => {
     requestAnimationFrame(() => {
-      listRef.current?.scrollToOffset({ offset: 0, animated });
+      listRef.current?.scrollToEnd({ animated });
     });
     setTimeout(() => {
-      listRef.current?.scrollToOffset({ offset: 0, animated });
+      listRef.current?.scrollToEnd({ animated });
     }, 60);
-  };
+  }, []);
+
+  const mergeMessages = useCallback((prev: Message[], next: Message[]) => {
+    const byId = new Map<string, Message>();
+    for (const m of prev) byId.set(m.id, m);
+    for (const m of next) byId.set(m.id, m);
+    return Array.from(byId.values()).sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+    );
+  }, []);
+
+  const appendMessage = useCallback(
+    (prev: Message[], msg: Message) => mergeMessages(prev, [msg]),
+    [mergeMessages],
+  );
   const myMessageBackgroundColor =
     colorScheme === 'dark'
       ? Colors.light.tint
@@ -59,7 +73,7 @@ export default function ChatScreen() {
   useEffect(() => {
     const show = Keyboard.addListener('keyboardDidShow', () => {
       setKeyboardVisible(true);
-      scrollToLatest(true);
+      if (isAtBottomRef.current) scrollToBottom(true);
     });
     const hide = Keyboard.addListener('keyboardDidHide', () => {
       setKeyboardVisible(false);
@@ -68,7 +82,7 @@ export default function ChatScreen() {
       show.remove();
       hide.remove();
     };
-  }, []);
+  }, [scrollToBottom]);
 
   useEffect(() => {
     navigation.setOptions({ title: 'Chat' });
@@ -84,31 +98,27 @@ export default function ChatScreen() {
         const sorted = Array.isArray(msgs)
           ? [...msgs].sort(
               (a, b) =>
-                new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+                new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
             )
           : [];
         setMessages(sorted);
         setConversation(conv);
 
-        // Update title with other user's name
         const otherUser = conv.user1.id === me.id ? conv.user2 : conv.user1;
         navigation.setOptions({ title: otherUser.fullName });
         
-        // Connect socket
         const socket = await connectSocket();
         if (socket) {
           socket.on('newMessage', (msg: SocketMessage) => {
             if (!msg.conversationId || msg.conversationId === conversationId) {
-              setMessages((prev) => [msg, ...prev]);
-              if (isNearBottomRef.current) {
-                scrollToLatest(true);
-              }
+              setMessages((prev) => appendMessage(prev, msg));
+              if (isAtBottomRef.current) scrollToBottom(true);
             }
           });
     } } catch {
       } finally {
         setLoading(false);
-        scrollToLatest(false);
+        scrollToBottom(false);
       }
     };
     
@@ -120,7 +130,7 @@ export default function ChatScreen() {
         socket.off('newMessage');
       }
     };
-  }, [conversationId, navigation]);
+  }, [conversationId, navigation, appendMessage, scrollToBottom]);
 
   const handleSend = async () => {
     if (!inputText.trim() || sending) return;
@@ -131,10 +141,9 @@ export default function ChatScreen() {
     
     try {
       const msg = await apiClient.sendMessage(conversationId, content);
-      setMessages((prev) => [msg, ...prev]);
-      scrollToLatest(true);
-    } catch (e) {
-      console.error(e);
+      setMessages((prev) => appendMessage(prev, msg));
+      scrollToBottom(true);
+    } catch {
       setInputText(content);
     } finally {
       setSending(false);
@@ -167,99 +176,119 @@ export default function ChatScreen() {
 
   const contextBackgroundColor = colorScheme === 'dark' ? '#333' : '#f0f0f0';
   const contextBorderColor = colorScheme === 'dark' ? '#444' : '#ccc';
+  const composerPaddingBottom =
+    Platform.OS === 'android' ? (keyboardVisible ? 0 : insets.bottom) : insets.bottom;
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}
+    <SafeAreaView
+      style={[
+        styles.container,
+        { backgroundColor: Colors[colorScheme ?? 'light'].surface },
+      ]}
+      edges={['left', 'right']}
     >
-      <ThemedView style={styles.container}>
-        {conversation?.matchRequest?.currencyPost && (
-          <View
-            style={[
-              styles.contextBanner,
-              { backgroundColor: contextBackgroundColor, borderBottomColor: contextBorderColor },
-            ]}
-          >
-            <ThemedText style={styles.contextText}>
-              Trading: {conversation.matchRequest.currencyPost.amount}{' '}
-              {conversation.matchRequest.currencyPost.haveCurrency} for{' '}
-              {conversation.matchRequest.currencyPost.needCurrency}
-            </ThemedText>
-          </View>
-        )}
-        {conversation?.parcelRequest && (
-          <View
-            style={[
-              styles.contextBanner,
-              { backgroundColor: contextBackgroundColor, borderBottomColor: contextBorderColor },
-            ]}
-          >
-            <ThemedText style={styles.contextText}>
-              Parcel: {conversation.parcelRequest.itemType} ({conversation.parcelRequest.fromCountry} ➡️{' '}
-              {conversation.parcelRequest.toCountry})
-            </ThemedText>
-          </View>
-        )}
-
-        <FlatList
-          ref={listRef}
-          data={messages}
-          renderItem={renderItem}
-          keyExtractor={(item) => item.id}
-          inverted
-          contentContainerStyle={styles.listContent}
-          keyboardShouldPersistTaps="handled"
-          scrollEventThrottle={16}
-          onScroll={(e) => {
-            isNearBottomRef.current = e.nativeEvent.contentOffset.y < 80;
-          }}
-        />
-        <View
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}
+      >
+        <ThemedView
           style={[
-            styles.inputContainer,
-            {
-              borderTopColor: Colors[colorScheme ?? 'light'].icon,
-              paddingBottom:
-                12 +
-                (Platform.OS === 'android'
-                  ? keyboardVisible
-                    ? 0
-                    : insets.bottom
-                  : insets.bottom),
-            },
+            styles.container,
+            { backgroundColor: Colors[colorScheme ?? 'light'].surface },
           ]}
         >
-          <TextInput
+          {conversation?.matchRequest?.currencyPost ? (
+            <View
+              style={[
+                styles.contextBanner,
+                { backgroundColor: contextBackgroundColor, borderBottomColor: contextBorderColor },
+              ]}
+            >
+              <ThemedText style={styles.contextText}>
+                Trading: {conversation.matchRequest.currencyPost.amount}{' '}
+                {conversation.matchRequest.currencyPost.haveCurrency} for{' '}
+                {conversation.matchRequest.currencyPost.needCurrency}
+              </ThemedText>
+            </View>
+          ) : null}
+
+          {conversation?.parcelRequest ? (
+            <View
+              style={[
+                styles.contextBanner,
+                { backgroundColor: contextBackgroundColor, borderBottomColor: contextBorderColor },
+              ]}
+            >
+              <ThemedText style={styles.contextText}>
+                Parcel: {conversation.parcelRequest.itemType} ({conversation.parcelRequest.fromCountry} ➡️{' '}
+                {conversation.parcelRequest.toCountry})
+              </ThemedText>
+            </View>
+          ) : null}
+
+          <FlatList
+            ref={listRef}
+            data={messages}
+            renderItem={renderItem}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.listContent}
+            keyboardShouldPersistTaps="handled"
+            onContentSizeChange={() => {
+              if (isAtBottomRef.current) scrollToBottom(false);
+            }}
+            scrollEventThrottle={16}
+            onScroll={(e) => {
+              const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+              const paddingToBottom = 80;
+              isAtBottomRef.current =
+                layoutMeasurement.height + contentOffset.y >=
+                contentSize.height - paddingToBottom;
+            }}
+          />
+
+          <View
             style={[
-              styles.input,
+              styles.composer,
               {
-                color: Colors[colorScheme ?? 'light'].text,
-                borderColor: Colors[colorScheme ?? 'light'].icon,
+                borderTopColor: Colors[colorScheme ?? 'light'].border,
+                paddingBottom: 10 + composerPaddingBottom,
+                backgroundColor: Colors[colorScheme ?? 'light'].background,
               },
             ]}
-            value={inputText}
-            onChangeText={setInputText}
-            placeholder="Type a message..."
-            placeholderTextColor="#999"
-            multiline
-            onFocus={() => scrollToLatest(true)}
-          />
-          <TouchableOpacity
-            onPress={handleSend}
-            disabled={!inputText.trim() || sending}
-            style={styles.sendButton}
           >
-            <IconSymbol
-              name="paperplane.fill"
-              size={24}
-              color={inputText.trim() ? Colors[colorScheme ?? 'light'].tint : '#ccc'}
-            />
-          </TouchableOpacity>
-        </View>
-      </ThemedView>
-    </KeyboardAvoidingView>
+            <View style={[styles.composerInner, { borderColor: Colors[colorScheme ?? 'light'].border }]}>
+              <TextInput
+                style={[styles.input, { color: Colors[colorScheme ?? 'light'].text }]}
+                value={inputText}
+                onChangeText={(t) => {
+                  setInputText(t);
+                  if (isAtBottomRef.current) scrollToBottom(true);
+                }}
+                placeholder="Type a message..."
+                placeholderTextColor={Colors[colorScheme ?? 'light'].tabIconDefault}
+                multiline
+                onFocus={() => scrollToBottom(true)}
+              />
+              <Pressable
+                onPress={handleSend}
+                disabled={!inputText.trim() || sending}
+                style={({ pressed }) => [
+                  styles.sendButton,
+                  { opacity: pressed ? 0.7 : 1 },
+                ]}
+              >
+                <IconSymbol
+                  name="paperplane.fill"
+                  size={22}
+                  color={inputText.trim() ? Colors[colorScheme ?? 'light'].tint : Colors[colorScheme ?? 'light'].tabIconDefault}
+                />
+              </Pressable>
+            </View>
+          </View>
+        </ThemedView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
@@ -273,7 +302,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   listContent: {
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
   },
   messageContainer: {
     maxWidth: '80%',
@@ -294,23 +325,35 @@ const styles = StyleSheet.create({
     marginTop: 4,
     alignSelf: 'flex-end',
   },
-  inputContainer: {
-    flexDirection: 'row',
-    padding: 12,
+  composer: {
+    paddingHorizontal: 12,
+    paddingTop: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
-    alignItems: 'center',
+  },
+  composerInner: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    borderWidth: 1,
+    borderRadius: 24,
+    paddingLeft: 14,
+    paddingRight: 8,
+    paddingVertical: 8,
+    gap: 10,
   },
   input: {
     flex: 1,
-    borderWidth: 1,
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginRight: 8,
-    maxHeight: 100,
+    fontSize: 16,
+    lineHeight: 20,
+    maxHeight: 120,
+    padding: 0,
+    margin: 0,
   },
   sendButton: {
-    padding: 8,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   contextBanner: {
     padding: 8,

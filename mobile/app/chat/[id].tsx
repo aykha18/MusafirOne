@@ -44,6 +44,7 @@ export default function ChatScreen() {
   const [composerHeight, setComposerHeight] = useState(0);
   const listRef = useRef<FlatList<Message> | null>(null);
   const isAtBottomRef = useRef(true);
+  const forceScrollToBottomRef = useRef(false);
   const windowHeightRef = useRef(Dimensions.get('window').height);
 
   const scrollToBottom = useCallback((animated: boolean) => {
@@ -54,6 +55,15 @@ export default function ChatScreen() {
       listRef.current?.scrollToEnd({ animated });
     }, 60);
   }, []);
+
+  const requestScrollToBottom = useCallback(
+    (animated: boolean) => {
+      forceScrollToBottomRef.current = true;
+      isAtBottomRef.current = true;
+      scrollToBottom(animated);
+    },
+    [scrollToBottom],
+  );
 
   const mergeMessages = useCallback((prev: Message[], next: Message[]) => {
     const byId = new Map<string, Message>();
@@ -146,11 +156,12 @@ export default function ChatScreen() {
     setSending(true);
     const content = inputText.trim();
     setInputText('');
+    requestScrollToBottom(true);
     
     try {
       const msg = await apiClient.sendMessage(conversationId, content);
       setMessages((prev) => appendMessage(prev, msg));
-      scrollToBottom(true);
+      requestScrollToBottom(true);
     } catch {
       setInputText(content);
     } finally {
@@ -243,7 +254,10 @@ export default function ChatScreen() {
             contentContainerStyle={[styles.listContent, { paddingBottom: listBottomPadding }]}
             keyboardShouldPersistTaps="handled"
             onContentSizeChange={() => {
-              if (isAtBottomRef.current) scrollToBottom(false);
+              if (forceScrollToBottomRef.current || isAtBottomRef.current) {
+                scrollToBottom(false);
+              }
+              forceScrollToBottomRef.current = false;
             }}
             scrollEventThrottle={16}
             onScroll={(e) => {
@@ -281,7 +295,7 @@ export default function ChatScreen() {
                 placeholder="Type a message..."
                 placeholderTextColor={Colors[colorScheme ?? 'light'].tabIconDefault}
                 multiline
-                onFocus={() => scrollToBottom(true)}
+                onFocus={() => requestScrollToBottom(true)}
               />
               <Pressable
                 onPress={handleSend}

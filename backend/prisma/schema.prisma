@@ -150,8 +150,17 @@ model Business {
   whatsapp   String?
   website    String?
   status     BusinessStatus @default(pending)
+  claimStatus BusinessClaimStatus @default(unclaimed)
+  claimedAt  DateTime?
+  claimedByUserId String?
   isVerified Boolean        @default(false)
   trialEndsAt DateTime?
+  sourceType ImportSourceType?
+  sourceName String?
+  sourceUrl  String?
+  importBatchId String?
+  importedAt DateTime?
+  lastSeenAt DateTime?
   createdAt  DateTime       @default(now())
   updatedAt  DateTime       @updatedAt
 
@@ -163,6 +172,8 @@ model Business {
   @@index([status])
   @@index([type])
   @@index([ownerUserId])
+  @@index([claimStatus])
+  @@index([importBatchId])
 }
 
 model BusinessBranch {
@@ -585,6 +596,20 @@ enum BusinessStatus {
   pending
   active
   rejected
+}
+
+enum BusinessClaimStatus {
+  unclaimed
+  claim_requested
+  claimed
+  claim_rejected
+}
+
+enum ImportSourceType {
+  manual
+  api
+  partner
+  other
 }
 
 enum ExchangeOfferDirection {

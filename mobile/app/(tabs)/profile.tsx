@@ -556,6 +556,15 @@ export default function ProfileScreen() {
                 <IconSymbol name="chevron.right" size={18} color={Colors[colorScheme ?? 'light'].icon} />
               </Pressable>
               <View style={[styles.menuDivider, { backgroundColor: Colors[colorScheme ?? 'light'].border }]} />
+              <Pressable onPress={() => router.push('/explore')} style={styles.menuRow}>
+                <View style={[styles.menuIcon, { backgroundColor: 'rgba(155, 161, 166, 0.14)' }]}>
+                  <IconSymbol name="chevron.left.forwardslash.chevron.right" size={18} color={Colors[colorScheme ?? 'light'].icon} />
+                </View>
+                <ThemedText type="defaultSemiBold" style={styles.menuLabel}>Explore</ThemedText>
+                <View style={{ flex: 1 }} />
+                <IconSymbol name="chevron.right" size={18} color={Colors[colorScheme ?? 'light'].icon} />
+              </Pressable>
+              <View style={[styles.menuDivider, { backgroundColor: Colors[colorScheme ?? 'light'].border }]} />
               <Pressable onPress={() => router.push('/referral')} style={styles.menuRow}>
                 <View style={[styles.menuIcon, { backgroundColor: 'rgba(255, 45, 85, 0.12)' }]}>
                   <IconSymbol name="gift" size={18} color="#FF2D55" />

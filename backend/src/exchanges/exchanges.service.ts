@@ -13,6 +13,7 @@ import { CreateExchangeConfirmationDto } from './dto/create-exchange-confirmatio
 import { CreateExchangeLeadDto } from './dto/create-exchange-lead.dto';
 import { CreateExchangeRateAlertDto } from './dto/create-exchange-rate-alert.dto';
 import { CreateOfferDto } from './dto/create-offer.dto';
+import { ListDirectoryBusinessesDto } from './dto/list-directory-businesses.dto';
 import { ListExchangesDto } from './dto/list-exchanges.dto';
 import { UpdateBranchDto } from './dto/update-branch.dto';
 import { UpdateBusinessDto } from './dto/update-business.dto';
@@ -35,6 +36,23 @@ type ExchangeListItem = {
   offerRate: string | null;
   offerUpdatedAt: string | null;
   offerIsStale: boolean | null;
+};
+
+type DirectoryBusinessListItem = {
+  id: string;
+  name: string;
+  type: BusinessType;
+  status: BusinessStatus;
+  claimStatus: string;
+  isVerified: boolean;
+  phone: string | null;
+  whatsapp: string | null;
+  website: string | null;
+  city: string;
+  address: string;
+  lat: number | null;
+  lng: number | null;
+  openNow: boolean | null;
 };
 
 @Injectable()
@@ -335,6 +353,97 @@ export class ExchangesService {
         lat: userLat,
         lng: userLng,
       },
+    };
+  }
+
+  async listDirectoryBusinesses(query: ListDirectoryBusinessesDto) {
+    const city = query.city?.trim();
+    const type = query.type;
+
+    const businesses = await this.prisma.business.findMany({
+      where: {
+        status: 'active',
+        type,
+        branches: city
+          ? {
+              some: {
+                isActive: true,
+                city: {
+                  equals: city,
+                  mode: 'insensitive',
+                },
+              },
+            }
+          : {
+              some: {
+                isActive: true,
+              },
+            },
+      },
+      include: {
+        branches: {
+          where: city
+            ? {
+                isActive: true,
+                city: {
+                  equals: city,
+                  mode: 'insensitive',
+                },
+              }
+            : { isActive: true },
+          orderBy: [{ createdAt: 'asc' }],
+          take: 1,
+        },
+      },
+      orderBy: [{ isVerified: 'desc' }, { name: 'asc' }],
+      take: 500,
+    });
+
+    const items = businesses
+      .map<DirectoryBusinessListItem | null>((b) => {
+        const branch = b.branches[0] ?? null;
+        if (!branch) return null;
+        return {
+          id: b.id,
+          name: b.name,
+          type: b.type,
+          status: b.status,
+          claimStatus: String((b as any).claimStatus ?? 'unclaimed'),
+          isVerified: b.isVerified,
+          phone: b.phone ?? null,
+          whatsapp: b.whatsapp ?? null,
+          website: b.website ?? null,
+          city: branch.city,
+          address: branch.address,
+          lat: branch.lat ?? null,
+          lng: branch.lng ?? null,
+          openNow: this.computeOpenNow(branch.hoursJson ?? null, branch.timeZone ?? null),
+        };
+      })
+      .filter((x): x is DirectoryBusinessListItem => Boolean(x));
+
+    return { items, query: { type, city: city ?? null } };
+  }
+
+  async getDirectoryBusiness(id: string) {
+    const business = await this.prisma.business.findUnique({
+      where: { id },
+      include: {
+        branches: {
+          where: { isActive: true },
+          orderBy: [{ createdAt: 'asc' }],
+          take: 20,
+        },
+      },
+    });
+    if (!business) throw new NotFoundException('Business not found');
+    if (business.status !== 'active') {
+      throw new NotFoundException('Business not found');
+    }
+
+    return {
+      ...business,
+      claimStatus: String((business as any).claimStatus ?? 'unclaimed'),
     };
   }
 

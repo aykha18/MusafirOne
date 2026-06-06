@@ -86,6 +86,36 @@ export type ExchangesListResponse = {
 
 export type BusinessType = 'exchange' | 'umrah';
 export type BusinessStatus = 'pending' | 'active' | 'rejected';
+export type BusinessClaimStatus =
+  | 'unclaimed'
+  | 'claim_requested'
+  | 'claimed'
+  | 'claim_rejected';
+
+export type DirectoryBusinessListItem = {
+  id: string;
+  name: string;
+  type: BusinessType;
+  status: BusinessStatus;
+  claimStatus: BusinessClaimStatus;
+  isVerified: boolean;
+  phone?: string | null;
+  whatsapp?: string | null;
+  website?: string | null;
+  city: string;
+  address: string;
+  lat: number | null;
+  lng: number | null;
+  openNow: boolean | null;
+};
+
+export type DirectoryBusinessesResponse = {
+  items: DirectoryBusinessListItem[];
+  query: {
+    type: BusinessType;
+    city: string | null;
+  };
+};
 
 export type MyBusiness = {
   id: string;
@@ -732,6 +762,14 @@ export class ApiClient {
 
   async getAppConfig() {
     return this.get<AppConfig>('/app-config');
+  }
+
+  async listDirectoryBusinesses(params: { type: BusinessType; city?: string }) {
+    return this.get<DirectoryBusinessesResponse>('/directory/businesses', params);
+  }
+
+  async getDirectoryBusiness(businessId: string) {
+    return this.get(`/directory/businesses/${businessId}`);
   }
 
   async listExchanges(params?: {

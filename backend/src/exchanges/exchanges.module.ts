@@ -4,6 +4,7 @@ import {
   AdminBusinessesController,
   AdminReviewsController,
   BusinessesController,
+  DirectoryController,
   ExchangesController,
   MeExchangeAlertsController,
   MeExchangeFavoritesController,
@@ -14,6 +15,7 @@ import { ExchangesService } from './exchanges.service';
   imports: [PrismaModule],
   controllers: [
     ExchangesController,
+    DirectoryController,
     AdminBusinessesController,
     BusinessesController,
     AdminReviewsController,

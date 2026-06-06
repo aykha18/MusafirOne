@@ -19,6 +19,7 @@ import { CreateExchangeConfirmationDto } from './dto/create-exchange-confirmatio
 import { CreateExchangeLeadDto } from './dto/create-exchange-lead.dto';
 import { CreateExchangeRateAlertDto } from './dto/create-exchange-rate-alert.dto';
 import { CreateOfferDto } from './dto/create-offer.dto';
+import { ListDirectoryBusinessesDto } from './dto/list-directory-businesses.dto';
 import { ListExchangesDto } from './dto/list-exchanges.dto';
 import { UpdateBranchDto } from './dto/update-branch.dto';
 import { UpdateBusinessDto } from './dto/update-business.dto';
@@ -80,6 +81,22 @@ export class ExchangesController {
     @Body() dto: CreateBusinessReviewDto,
   ) {
     return this.exchangesService.createReview(req.user.id, businessId, dto);
+  }
+}
+
+@UseGuards(AuthGuard('jwt'))
+@Controller('directory')
+export class DirectoryController {
+  constructor(private readonly exchangesService: ExchangesService) {}
+
+  @Get('businesses')
+  list(@Query() query: ListDirectoryBusinessesDto) {
+    return this.exchangesService.listDirectoryBusinesses(query);
+  }
+
+  @Get('businesses/:id')
+  getOne(@Param('id') id: string) {
+    return this.exchangesService.getDirectoryBusiness(id);
   }
 }
 

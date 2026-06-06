@@ -70,6 +70,13 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="umrah"
+        options={{
+          title: 'Umrah',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="airplane" color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="chat"
         options={{
           title: 'Connect',
@@ -81,6 +88,12 @@ export default function TabLayout() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="explore"
+        options={{
+          href: null,
         }}
       />
     </Tabs>

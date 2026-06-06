@@ -142,6 +142,7 @@ export type BusinessClaim = {
   businessClaimStatus: BusinessClaimStatus;
   status: BusinessClaimRequestStatus;
   method: BusinessClaimMethod;
+  docsCount?: number;
   rejectionReason?: string | null;
   createdAt: string;
   reviewedAt?: string | null;

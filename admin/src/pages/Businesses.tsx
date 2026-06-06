@@ -12,6 +12,9 @@ const Businesses: React.FC = () => {
   const [targetBusinessId, setTargetBusinessId] = useState('');
   const [sourceBusinessId, setSourceBusinessId] = useState('');
   const [merging, setMerging] = useState(false);
+  const [claimCodeBusinessId, setClaimCodeBusinessId] = useState('');
+  const [claimCode, setClaimCode] = useState<string | null>(null);
+  const [generatingCode, setGeneratingCode] = useState(false);
 
   const filtered = useMemo(() => {
     return items.filter((b) => {
@@ -60,6 +63,27 @@ const Businesses: React.FC = () => {
     }
   };
 
+  const generateClaimCode = async () => {
+    const id = claimCodeBusinessId.trim();
+    if (!id) {
+      alert('Enter a business ID');
+      return;
+    }
+    if (!window.confirm(`Generate a new in-person claim code for ${id}?`)) return;
+    setGeneratingCode(true);
+    setError(null);
+    try {
+      const res = await businessesService.generateClaimCode(id);
+      setClaimCode(res?.code ? String(res.code) : null);
+      await load();
+      alert(`Claim code: ${String(res.code)}`);
+    } catch (e: any) {
+      setError(e?.response?.data?.message ?? e?.message ?? 'Failed to generate claim code');
+    } finally {
+      setGeneratingCode(false);
+    }
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -104,6 +128,34 @@ const Businesses: React.FC = () => {
             {merging ? 'Merging...' : 'Merge'}
           </button>
         </div>
+      </div>
+
+      <div className="bg-white rounded shadow p-4 mb-6">
+        <h3 className="font-bold mb-3">In-person Claim Code</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+          <div className="md:col-span-2">
+            <label className="block text-sm text-gray-600 mb-1">Business ID</label>
+            <input
+              value={claimCodeBusinessId}
+              onChange={(e) => setClaimCodeBusinessId(e.target.value)}
+              className="border rounded p-2 w-full"
+              placeholder="Business ID"
+            />
+          </div>
+          <button
+            onClick={() => generateClaimCode()}
+            className="px-3 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+            disabled={generatingCode}
+          >
+            {generatingCode ? 'Generating...' : 'Generate Code'}
+          </button>
+        </div>
+        {claimCode ? (
+          <div className="mt-3 text-sm">
+            <span className="text-gray-600">Latest code:</span>{' '}
+            <span className="font-mono font-bold">{claimCode}</span>
+          </div>
+        ) : null}
       </div>
 
       <div className="bg-white rounded shadow overflow-x-auto">
@@ -167,4 +219,3 @@ const Businesses: React.FC = () => {
 };
 
 export default Businesses;
-

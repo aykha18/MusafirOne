@@ -32,5 +32,11 @@ export const businessesService = {
     });
     return response.data;
   },
+  generateClaimCode: async (businessId: string) => {
+    const response = await api.post<{ ok: true; code: string }>(
+      `/admin/businesses/${businessId}/claim-code`,
+      {},
+    );
+    return response.data;
+  },
 };
-

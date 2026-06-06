@@ -3,7 +3,7 @@ import { Alert, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 
-import { apiClient } from '@/api/client';
+import { apiClient, type BusinessClaim } from '@/api/client';
 import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { AppCard } from '@/components/ui/app-card';
@@ -20,6 +20,7 @@ export default function ClaimBusinessScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [business, setBusiness] = useState<any>(null);
+  const [myClaim, setMyClaim] = useState<BusinessClaim | null>(null);
 
   const [method, setMethod] = useState<'phone_otp' | 'docs' | 'in_person_code'>('phone_otp');
   const [phoneToVerify, setPhoneToVerify] = useState('');
@@ -27,6 +28,12 @@ export default function ClaimBusinessScreen() {
   const [otpSent, setOtpSent] = useState(false);
   const [claimCode, setClaimCode] = useState('');
   const [docsCount, setDocsCount] = useState(0);
+
+  const hasPhone = useMemo(() => {
+    const phone = String(business?.phone ?? '').trim();
+    const whatsapp = String(business?.whatsapp ?? '').trim();
+    return phone.length > 0 || whatsapp.length > 0;
+  }, [business?.phone, business?.whatsapp]);
 
   const claimable = useMemo(() => {
     const status = String(business?.claimStatus ?? 'unclaimed');
@@ -38,11 +45,34 @@ export default function ClaimBusinessScreen() {
     setBusy(true);
     setError(null);
     try {
-      const res = await apiClient.getDirectoryBusiness(String(id));
+      const [res, claims] = await Promise.all([
+        apiClient.getDirectoryBusiness(String(id)),
+        apiClient.listMyClaims().catch(() => [] as BusinessClaim[]),
+      ]);
       setBusiness(res);
+      const localHasPhone =
+        String((res as any)?.phone ?? '').trim().length > 0 ||
+        String((res as any)?.whatsapp ?? '').trim().length > 0;
       const phone =
         String((res as any)?.phone ?? '').trim() || String((res as any)?.whatsapp ?? '').trim();
       if (phone && !phoneToVerify) setPhoneToVerify(phone);
+
+      const my = (Array.isArray(claims) ? claims : []).find((c) => c.businessId === String(id)) ?? null;
+      setMyClaim(my);
+      if (my?.method) {
+        setMethod(my.method);
+      } else if (!localHasPhone) {
+        setMethod('in_person_code');
+      } else {
+        setMethod('phone_otp');
+      }
+
+      if (my?.method === 'phone_otp' && my?.status === 'pending') {
+        setOtpSent(true);
+      }
+      if (my?.method === 'docs') {
+        setDocsCount(typeof my.docsCount === 'number' ? my.docsCount : 0);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -57,6 +87,15 @@ export default function ClaimBusinessScreen() {
     }
     void load();
   }, [id]);
+
+  const setMethodSafe = (next: 'phone_otp' | 'docs' | 'in_person_code') => {
+    if (next === 'phone_otp' && !hasPhone) {
+      Alert.alert('Not available', 'This business does not have a phone/WhatsApp number.');
+      setMethod('in_person_code');
+      return;
+    }
+    setMethod(next);
+  };
 
   const sendOtp = async () => {
     if (!id) return;
@@ -239,8 +278,31 @@ export default function ClaimBusinessScreen() {
         {business?.claimStatus ? (
           <ThemedText style={{ opacity: 0.75 }}>Status: {String(business.claimStatus)}</ThemedText>
         ) : null}
+        {myClaim ? (
+          <ThemedText style={{ opacity: 0.75 }}>
+            Your claim: {myClaim.status} • {myClaim.method}
+          </ThemedText>
+        ) : null}
 
         {error ? <ThemedText style={{ color: 'red' }}>{error}</ThemedText> : null}
+
+        <AppCard style={{ padding: 14, gap: 6 }}>
+          <ThemedText type="defaultSemiBold">Progress</ThemedText>
+          <ThemedText style={{ opacity: 0.75 }}>
+            {myClaim
+              ? `Request submitted (${myClaim.status})`
+              : 'No claim started yet'}
+          </ThemedText>
+          <ThemedText style={{ opacity: 0.75 }}>
+            {myClaim?.status === 'approved' || String(business?.claimStatus) === 'claimed'
+              ? 'Ownership assigned'
+              : myClaim?.status === 'rejected'
+                ? 'Rejected (you can retry later)'
+                : myClaim?.status === 'pending'
+                  ? 'Waiting for verification/review'
+                  : '—'}
+          </ThemedText>
+        </AppCard>
 
         <AppCard style={{ padding: 14, gap: 12 }}>
           <ThemedText type="defaultSemiBold">Verification method</ThemedText>
@@ -251,7 +313,7 @@ export default function ClaimBusinessScreen() {
               { value: 'docs', label: 'Docs' },
               { value: 'in_person_code', label: 'In-person code' },
             ]}
-            onChange={(v) => setMethod(v as any)}
+            onChange={(v) => setMethodSafe(v as any)}
           />
 
           {method === 'phone_otp' ? (

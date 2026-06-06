@@ -1224,6 +1224,7 @@ export class ExchangesService {
       businessClaimStatus: c.business.claimStatus,
       status: c.status,
       method: c.method,
+      docsCount: this.parseClaimDocs(c.docsJson).length,
       rejectionReason: c.rejectionReason,
       createdAt: c.createdAt,
       reviewedAt: c.reviewedAt,

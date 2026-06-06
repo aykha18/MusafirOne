@@ -707,6 +707,19 @@ export class ExchangesService {
     businessId: string,
     dto: CreateBusinessClaimDto,
   ) {
+    const maxPendingRaw = Number(process.env.CLAIM_MAX_PENDING_PER_USER ?? 3);
+    const maxPending = Number.isFinite(maxPendingRaw) && maxPendingRaw > 0 ? maxPendingRaw : 3;
+    const cooldownHoursRaw = Number(process.env.CLAIM_RETRY_COOLDOWN_HOURS ?? 72);
+    const cooldownHours =
+      Number.isFinite(cooldownHoursRaw) && cooldownHoursRaw > 0 ? cooldownHoursRaw : 72;
+
+    const myPendingCount = await this.prisma.businessClaim.count({
+      where: { requesterUserId: userId, status: 'pending' },
+    });
+    if (myPendingCount >= maxPending) {
+      throw new BadRequestException('Too many pending claims');
+    }
+
     const business = await this.prisma.business.findUnique({
       where: { id: businessId },
       select: {
@@ -724,6 +737,18 @@ export class ExchangesService {
     }
     if (business.claimStatus === 'claimed') {
       throw new BadRequestException('Business is already claimed');
+    }
+
+    const lastMine = await this.prisma.businessClaim.findFirst({
+      where: { businessId, requesterUserId: userId },
+      orderBy: [{ createdAt: 'desc' }],
+      select: { status: true, createdAt: true },
+    });
+    if (lastMine?.status === 'rejected') {
+      const cutoff = Date.now() - cooldownHours * 60 * 60 * 1000;
+      if (lastMine.createdAt.getTime() > cutoff) {
+        throw new BadRequestException('Please wait before re-trying this claim');
+      }
     }
 
     const existingPending = await this.prisma.businessClaim.findFirst({

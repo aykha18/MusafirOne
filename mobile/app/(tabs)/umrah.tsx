@@ -137,6 +137,17 @@ export default function UmrahScreen() {
     ]);
   };
 
+  const showBadgesHelp = () => {
+    Alert.alert(
+      'Badges',
+      [
+        'Verified: admin-verified business.',
+        'Unclaimed: listing is public but not managed by the owner yet.',
+        'Claim in review: your claim request is pending admin approval.',
+      ].join('\n\n'),
+    );
+  };
+
   return (
     <ParallaxScrollView
       headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
@@ -148,6 +159,9 @@ export default function UmrahScreen() {
         <ThemedText type="title" style={{ fontFamily: Fonts.rounded }}>
           Umrah
         </ThemedText>
+        <Pressable onPress={showBadgesHelp}>
+          <ThemedText style={styles.helpLink}>Badges</ThemedText>
+        </Pressable>
       </ThemedView>
       <ThemedText style={styles.subtitle}>Browse Umrah agencies. Claim + inquiry flows are next.</ThemedText>
 
@@ -172,9 +186,18 @@ export default function UmrahScreen() {
             <AppCard key={it.id} variant="soft" style={{ padding: 12, gap: 6 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                 <ThemedText type="defaultSemiBold" style={{ flex: 1 }}>
-                  {it.name} {it.isVerified ? '✓' : ''}
+                  {it.name}
                 </ThemedText>
-                <ThemedText style={{ opacity: 0.7 }}>{claimLabel(it.claimStatus)}</ThemedText>
+                <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                  {it.isVerified ? (
+                    <View style={styles.badge}>
+                      <ThemedText style={styles.badgeText}>Verified</ThemedText>
+                    </View>
+                  ) : null}
+                  <View style={styles.badge}>
+                    <ThemedText style={styles.badgeText}>{claimLabel(it.claimStatus)}</ThemedText>
+                  </View>
+                </View>
               </View>
               <ThemedText style={{ opacity: 0.75 }}>
                 {it.city} • {it.address}
@@ -247,5 +270,21 @@ const styles = StyleSheet.create({
   },
   link: {
     color: '#007AFF',
+  },
+  helpLink: {
+    color: '#007AFF',
+    opacity: 0.9,
+  },
+  badge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.12)',
+    backgroundColor: 'rgba(0,0,0,0.04)',
+  },
+  badgeText: {
+    fontSize: 12,
+    opacity: 0.85,
   },
 });

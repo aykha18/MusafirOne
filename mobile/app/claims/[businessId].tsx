@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as DocumentPicker from 'expo-document-picker';
 
 import { apiClient } from '@/api/client';
 import ParallaxScrollView from '@/components/parallax-scroll-view';
@@ -25,6 +26,7 @@ export default function ClaimBusinessScreen() {
   const [otpCode, setOtpCode] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [claimCode, setClaimCode] = useState('');
+  const [docsCount, setDocsCount] = useState(0);
 
   const claimable = useMemo(() => {
     const status = String(business?.claimStatus ?? 'unclaimed');
@@ -165,9 +167,61 @@ export default function ClaimBusinessScreen() {
     setBusy(true);
     setError(null);
     try {
-      await apiClient.createBusinessClaim(String(id), { method: 'docs' });
+      try {
+        await apiClient.createBusinessClaim(String(id), { method: 'docs' });
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        if (!String(message).toLowerCase().includes('already pending')) {
+          throw e;
+        }
+      }
       Alert.alert('Submitted', 'Your claim is in review.');
       router.back();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const uploadDocs = async () => {
+    if (!id) return;
+    if (!claimable) {
+      Alert.alert('Not available', 'This business cannot be claimed right now.');
+      return;
+    }
+    try {
+      setBusy(true);
+      setError(null);
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['image/*', 'application/pdf'],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
+      const asset = result.assets[0];
+      if (!asset.uri || !asset.name || !asset.mimeType) {
+        Alert.alert('Error', 'Selected file is missing metadata');
+        return;
+      }
+
+      const res: any = await apiClient.uploadBusinessClaimDoc({
+        businessId: String(id),
+        uri: asset.uri,
+        name: asset.name,
+        mimeType: asset.mimeType,
+      });
+
+      const nextCount =
+        typeof res?.docsCount === 'number'
+          ? res.docsCount
+          : Array.isArray(res?.docs)
+            ? res.docs.length
+            : docsCount + 1;
+      setDocsCount(nextCount);
+      Alert.alert('Uploaded', 'Document uploaded for review.');
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -226,8 +280,12 @@ export default function ClaimBusinessScreen() {
           ) : (
             <ThemedView style={{ gap: 10 }}>
               <ThemedText style={{ opacity: 0.75 }}>
-                Upload flow is next. For now this submits a claim for manual review.
+                Upload trade license / agency license for manual review.
               </ThemedText>
+              {docsCount > 0 ? (
+                <ThemedText style={{ opacity: 0.75 }}>Uploaded: {docsCount} file(s)</ThemedText>
+              ) : null}
+              <ThemedButton title={busy ? 'Uploading...' : 'Upload Document'} onPress={uploadDocs} disabled={busy} />
               <ThemedButton title={busy ? 'Submitting...' : 'Submit for Review'} onPress={submitDocsClaim} disabled={busy} />
             </ThemedView>
           )}

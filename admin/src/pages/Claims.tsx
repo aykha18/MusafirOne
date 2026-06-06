@@ -1,6 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { claimsService, type AdminClaim, type ClaimStatus } from '../services/claims.service';
 
+type ClaimDoc = {
+  id: string;
+  fileName: string;
+  mimeType?: string;
+  storagePath?: string;
+  uploadedAt?: string;
+};
+
 const Claims: React.FC = () => {
   const [items, setItems] = useState<AdminClaim[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,6 +36,41 @@ const Claims: React.FC = () => {
   useEffect(() => {
     void load();
   }, [filter]);
+
+  const parseDocs = (docsJson?: string | null): ClaimDoc[] => {
+    if (!docsJson) return [];
+    try {
+      const parsed = JSON.parse(docsJson) as unknown;
+      if (!Array.isArray(parsed)) return [];
+      return parsed
+        .map((d) => ({
+          id: String((d as any)?.id ?? ''),
+          fileName: String((d as any)?.fileName ?? ''),
+          mimeType: (d as any)?.mimeType ? String((d as any).mimeType) : undefined,
+          storagePath: (d as any)?.storagePath ? String((d as any).storagePath) : undefined,
+          uploadedAt: (d as any)?.uploadedAt ? String((d as any).uploadedAt) : undefined,
+        }))
+        .filter((d) => d.id && d.fileName);
+    } catch {
+      return [];
+    }
+  };
+
+  const downloadDoc = async (claimId: string, doc: ClaimDoc) => {
+    try {
+      const blob = await claimsService.downloadDoc(claimId, doc.id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = doc.fileName || 'document';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert('Failed to download document');
+    }
+  };
 
   const approve = async (id: string) => {
     if (!window.confirm('Approve this claim and assign ownership?')) return;
@@ -84,6 +127,7 @@ const Claims: React.FC = () => {
               <th className="p-3">Business</th>
               <th className="p-3">Requester</th>
               <th className="p-3">Method</th>
+              <th className="p-3">Docs</th>
               <th className="p-3">Status</th>
               <th className="p-3">Created</th>
               <th className="p-3">Actions</th>
@@ -91,6 +135,9 @@ const Claims: React.FC = () => {
           </thead>
           <tbody>
             {filtered.map((c) => (
+              (() => {
+                const docs = parseDocs(c.docsJson);
+                return (
               <tr key={c.id} className="border-b hover:bg-gray-50">
                 <td className="p-3">
                   <div className="font-medium">{c.business?.name ?? c.businessId}</div>
@@ -103,6 +150,26 @@ const Claims: React.FC = () => {
                   <div className="text-xs text-gray-500">{c.requester?.phoneNumber ?? ''}</div>
                 </td>
                 <td className="p-3">{c.method}</td>
+                <td className="p-3">
+                  {docs.length > 0 ? (
+                    <div className="flex flex-col gap-2">
+                      <div className="text-xs text-gray-500">{docs.length} file(s)</div>
+                      <div className="flex flex-wrap gap-2">
+                        {docs.map((d) => (
+                          <button
+                            key={d.id}
+                            onClick={() => downloadDoc(c.id, d)}
+                            className="px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 text-xs"
+                          >
+                            Download
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <span className="text-gray-500">—</span>
+                  )}
+                </td>
                 <td className="p-3">{c.status}</td>
                 <td className="p-3">{new Date(c.createdAt).toLocaleString()}</td>
                 <td className="p-3">
@@ -126,17 +193,19 @@ const Claims: React.FC = () => {
                   )}
                 </td>
               </tr>
+                );
+              })()
             ))}
             {filtered.length === 0 && !loading ? (
               <tr>
-                <td className="p-4 text-gray-500" colSpan={6}>
+                <td className="p-4 text-gray-500" colSpan={7}>
                   No claims found.
                 </td>
               </tr>
             ) : null}
             {loading ? (
               <tr>
-                <td className="p-4 text-gray-500" colSpan={6}>
+                <td className="p-4 text-gray-500" colSpan={7}>
                   Loading...
                 </td>
               </tr>

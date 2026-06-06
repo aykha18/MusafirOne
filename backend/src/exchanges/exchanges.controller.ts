@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -8,9 +9,17 @@ import {
   Post,
   Query,
   Req,
+  Res,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { randomBytes } from 'node:crypto';
+import { createReadStream, existsSync, mkdirSync } from 'node:fs';
+import { extname, resolve, sep } from 'node:path';
+import { diskStorage } from 'multer';
 import { AdminGuard } from '../auth/admin.guard';
 import { CreateBranchDto } from './dto/create-branch.dto';
 import { CreateBusinessClaimDto } from './dto/create-business-claim.dto';
@@ -40,6 +49,22 @@ type AuthenticatedRequest = {
     isAdmin?: boolean;
   };
 };
+
+function getClaimUploadBaseDir() {
+  const dir = resolve(process.cwd(), 'uploads', 'claims');
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+  return dir;
+}
+
+function isAllowedMimeType(mimeType: string) {
+  return (
+    mimeType === 'application/pdf' ||
+    mimeType === 'image/jpeg' ||
+    mimeType === 'image/png'
+  );
+}
 
 @UseGuards(AuthGuard('jwt'))
 @Controller('exchanges')
@@ -158,6 +183,51 @@ export class BusinessesController {
     @Body() dto: CreateBusinessClaimDto,
   ) {
     return this.exchangesService.createBusinessClaim(req.user.id, businessId, dto);
+  }
+
+  @Post('businesses/:id/claim/docs')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: (_req, _file, cb) => cb(null, getClaimUploadBaseDir()),
+        filename: (req, file, cb) => {
+          const authReq = req as unknown as AuthenticatedRequest;
+          const safeExt = extname(file.originalname).slice(0, 10);
+          const token = randomBytes(8).toString('hex');
+          cb(
+            null,
+            `${authReq.user.id}_${Date.now()}_${token}${safeExt}`.replace(
+              /[^a-zA-Z0-9._-]/g,
+              '_',
+            ),
+          );
+        },
+      }),
+      limits: {
+        fileSize: 10 * 1024 * 1024,
+      },
+      fileFilter: (_req, file, cb) => {
+        if (!isAllowedMimeType(file.mimetype)) {
+          cb(new Error('Unsupported file type'), false);
+          return;
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  async uploadClaimDoc(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') businessId: string,
+    @UploadedFile() file?: any,
+  ) {
+    if (!file) {
+      throw new BadRequestException('file is required');
+    }
+    return this.exchangesService.uploadBusinessClaimDoc(req.user.id, businessId, {
+      fileName: file.originalname,
+      mimeType: file.mimetype,
+      storagePath: file.path,
+    });
   }
 
   @Post('businesses/:id/claim/verify-otp')
@@ -363,5 +433,23 @@ export class AdminClaimsController {
     @Body('rejectionReason') rejectionReason?: string,
   ) {
     return this.exchangesService.adminRejectBusinessClaim(req.user.id, id, rejectionReason);
+  }
+
+  @Get(':id/docs/:docId/download')
+  async downloadDoc(@Param('id') id: string, @Param('docId') docId: string, @Res() res: any) {
+    const doc = await this.exchangesService.adminGetClaimDocForDownload(id, docId);
+    const baseDir = getClaimUploadBaseDir();
+    const resolvedPath = resolve(doc.storagePath);
+    const normalizedBase = baseDir.endsWith(sep) ? baseDir : `${baseDir}${sep}`;
+    if (!resolvedPath.startsWith(normalizedBase)) {
+      res.status(400).json({ message: 'Invalid storage path' });
+      return;
+    }
+    res.setHeader('Content-Type', doc.mimeType);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${doc.fileName.replace(/"/g, '')}"`,
+    );
+    createReadStream(resolvedPath).pipe(res);
   }
 }

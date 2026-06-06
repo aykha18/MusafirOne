@@ -50,4 +50,10 @@ export const claimsService = {
     const response = await api.patch(`/admin/claims/${id}/reject`, { rejectionReason });
     return response.data;
   },
+  downloadDoc: async (claimId: string, docId: string) => {
+    const response = await api.get(`/admin/claims/${claimId}/docs/${docId}/download`, {
+      responseType: 'blob',
+    });
+    return response.data as Blob;
+  },
 };

@@ -810,6 +810,24 @@ export class ApiClient {
     return this.post(`/businesses/${businessId}/claim`, payload);
   }
 
+  async uploadBusinessClaimDoc(payload: {
+    businessId: string;
+    uri: string;
+    name: string;
+    mimeType: string;
+  }) {
+    const formData = new FormData();
+    formData.append(
+      'file',
+      {
+        uri: payload.uri,
+        name: payload.name,
+        type: payload.mimeType,
+      } as any,
+    );
+    return this.postFormData(`/businesses/${payload.businessId}/claim/docs`, formData);
+  }
+
   async verifyBusinessClaimOtp(businessId: string, code: string) {
     return this.post(`/businesses/${businessId}/claim/verify-otp`, { code });
   }

@@ -76,6 +76,31 @@ export class ExchangesService {
     return value.toString();
   }
 
+  private parseClaimDocs(docsJson: string | null): Array<{
+    id: string;
+    fileName: string;
+    mimeType: string;
+    storagePath: string;
+    uploadedAt: string;
+  }> {
+    if (!docsJson) return [];
+    try {
+      const parsed = JSON.parse(docsJson) as unknown;
+      if (!Array.isArray(parsed)) return [];
+      return parsed
+        .map((it) => ({
+          id: String((it as any)?.id ?? ''),
+          fileName: String((it as any)?.fileName ?? ''),
+          mimeType: String((it as any)?.mimeType ?? ''),
+          storagePath: String((it as any)?.storagePath ?? ''),
+          uploadedAt: String((it as any)?.uploadedAt ?? ''),
+        }))
+        .filter((d) => d.id && d.fileName && d.mimeType && d.storagePath);
+    } catch {
+      return [];
+    }
+  }
+
   private getReviewCooldownDays() {
     const raw = Number(process.env.REVIEW_COOLDOWN_DAYS ?? 30);
     if (!Number.isFinite(raw) || raw <= 0) return 30;
@@ -966,6 +991,126 @@ export class ExchangesService {
 
     await this.authService.requestOtp({ phoneNumber: phone });
     return { ok: true as const };
+  }
+
+  async uploadBusinessClaimDoc(
+    userId: string,
+    businessId: string,
+    file: { fileName: string; mimeType: string; storagePath: string },
+  ) {
+    const maxPendingRaw = Number(process.env.CLAIM_MAX_PENDING_PER_USER ?? 3);
+    const maxPending =
+      Number.isFinite(maxPendingRaw) && maxPendingRaw > 0 ? maxPendingRaw : 3;
+    const cooldownHoursRaw = Number(process.env.CLAIM_RETRY_COOLDOWN_HOURS ?? 72);
+    const cooldownHours =
+      Number.isFinite(cooldownHoursRaw) && cooldownHoursRaw > 0 ? cooldownHoursRaw : 72;
+
+    const business = await this.prisma.business.findUnique({
+      where: { id: businessId },
+      select: { id: true, status: true, ownerUserId: true, claimStatus: true },
+    });
+    if (!business || business.status !== 'active') {
+      throw new NotFoundException('Business not found');
+    }
+    if (business.ownerUserId) {
+      throw new BadRequestException('Business is already owned');
+    }
+    if (business.claimStatus === 'claimed') {
+      throw new BadRequestException('Business is already claimed');
+    }
+
+    const existingPending = await this.prisma.businessClaim.findFirst({
+      where: { businessId, status: 'pending' },
+      orderBy: [{ createdAt: 'desc' }],
+    });
+
+    if (existingPending && existingPending.requesterUserId !== userId) {
+      throw new BadRequestException('A claim is already pending for this business');
+    }
+
+    let claim = existingPending ?? null;
+    if (!claim) {
+      const myPendingCount = await this.prisma.businessClaim.count({
+        where: { requesterUserId: userId, status: 'pending' },
+      });
+      if (myPendingCount >= maxPending) {
+        throw new BadRequestException('Too many pending claims');
+      }
+
+      const lastMine = await this.prisma.businessClaim.findFirst({
+        where: { businessId, requesterUserId: userId },
+        orderBy: [{ createdAt: 'desc' }],
+        select: { status: true, createdAt: true },
+      });
+      if (lastMine?.status === 'rejected') {
+        const cutoff = Date.now() - cooldownHours * 60 * 60 * 1000;
+        if (lastMine.createdAt.getTime() > cutoff) {
+          throw new BadRequestException('Please wait before re-trying this claim');
+        }
+      }
+
+      claim = await this.prisma.businessClaim.create({
+        data: {
+          businessId,
+          requesterUserId: userId,
+          method: 'docs' as any,
+          status: 'pending',
+          docsJson: null,
+          phoneToVerify: null,
+        },
+      });
+
+      await this.prisma.business.update({
+        where: { id: businessId },
+        data: { claimStatus: 'claim_requested' },
+      });
+    } else {
+      if (claim.method !== 'docs') {
+        throw new BadRequestException('Pending claim is not a docs claim');
+      }
+      if (business.claimStatus !== 'claim_requested') {
+        await this.prisma.business.update({
+          where: { id: businessId },
+          data: { claimStatus: 'claim_requested' },
+        });
+      }
+    }
+
+    const docs = this.parseClaimDocs(claim.docsJson);
+    if (docs.length >= 5) {
+      throw new BadRequestException('Too many documents');
+    }
+
+    const doc = {
+      id: randomBytes(8).toString('hex'),
+      fileName: file.fileName,
+      mimeType: file.mimeType,
+      storagePath: file.storagePath,
+      uploadedAt: new Date().toISOString(),
+    };
+
+    const nextDocs = [...docs, doc];
+    await this.prisma.businessClaim.update({
+      where: { id: claim.id },
+      data: {
+        docsJson: JSON.stringify(nextDocs),
+      },
+    });
+
+    return { ok: true as const, claimId: claim.id, docsCount: nextDocs.length, docs: nextDocs };
+  }
+
+  async adminGetClaimDocForDownload(claimId: string, docId: string) {
+    const claim = await this.prisma.businessClaim.findUnique({
+      where: { id: claimId },
+      select: { id: true, docsJson: true },
+    });
+    if (!claim) throw new NotFoundException('Claim not found');
+
+    const docs = this.parseClaimDocs(claim.docsJson);
+    const doc = docs.find((d) => d.id === docId);
+    if (!doc) throw new NotFoundException('Document not found');
+    return doc;
   }
 
   async adminGenerateBusinessClaimCode(businessId: string) {

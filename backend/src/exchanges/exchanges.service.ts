@@ -5,12 +5,18 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { createHash, randomBytes } from 'crypto';
-import { BusinessClaimRequestStatus, BusinessStatus, BusinessType } from '@prisma/client';
+import {
+  BusinessClaimRequestStatus,
+  BusinessReportStatus,
+  BusinessStatus,
+  BusinessType,
+} from '@prisma/client';
 import { AuthService } from '../auth/auth.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateBranchDto } from './dto/create-branch.dto';
 import { CreateBusinessClaimDto } from './dto/create-business-claim.dto';
 import { CreateBusinessDto } from './dto/create-business.dto';
+import { CreateBusinessReportDto } from './dto/create-business-report.dto';
 import { CreateBusinessReviewDto } from './dto/create-business-review.dto';
 import { CreateExchangeConfirmationDto } from './dto/create-exchange-confirmation.dto';
 import { CreateExchangeLeadDto } from './dto/create-exchange-lead.dto';
@@ -693,6 +699,59 @@ export class ExchangesService {
     });
   }
 
+  async createBusinessReport(
+    userId: string,
+    businessId: string,
+    dto: CreateBusinessReportDto,
+  ) {
+    const business = await this.prisma.business.findUnique({
+      where: { id: businessId },
+      select: { id: true, status: true },
+    });
+    if (!business || business.status !== 'active') {
+      throw new NotFoundException('Business not found');
+    }
+
+    const existingOpen = await this.prisma.businessReport.findFirst({
+      where: {
+        businessId,
+        reporterUserId: userId,
+        status: 'open',
+      },
+      select: { id: true },
+    });
+    if (existingOpen) {
+      throw new BadRequestException('Report already submitted');
+    }
+
+    const dailyLimitRaw = Number(process.env.BUSINESS_REPORT_MAX_PER_DAY ?? 5);
+    const dailyLimit =
+      Number.isFinite(dailyLimitRaw) && dailyLimitRaw > 0 ? dailyLimitRaw : 5;
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const recentCount = await this.prisma.businessReport.count({
+      where: {
+        reporterUserId: userId,
+        createdAt: { gte: cutoff },
+      },
+    });
+    if (recentCount >= dailyLimit) {
+      throw new BadRequestException('Too many reports');
+    }
+
+    return this.prisma.businessReport.create({
+      data: {
+        businessId,
+        reporterUserId: userId,
+        status: 'open',
+        reason: dto.reason.trim(),
+        details: dto.details?.trim() ? dto.details.trim() : null,
+      },
+      include: {
+        business: { select: { id: true, name: true, type: true, status: true, claimStatus: true } },
+      },
+    });
+  }
+
   private async assertBusinessOwner(userId: string, businessId: string) {
     const business = await this.prisma.business.findUnique({
       where: { id: businessId },
@@ -1264,6 +1323,58 @@ export class ExchangesService {
     });
 
     return { ok: true as const, claim: updated };
+  }
+
+  async adminListBusinessReports(status?: string) {
+    const where =
+      status && ['open', 'resolved'].includes(status)
+        ? { status: status as BusinessReportStatus }
+        : undefined;
+    return this.prisma.businessReport.findMany({
+      where,
+      orderBy: [{ createdAt: 'desc' }],
+      take: 200,
+      include: {
+        business: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            status: true,
+            claimStatus: true,
+            isVerified: true,
+            ownerUserId: true,
+          },
+        },
+        reporter: { select: { id: true, fullName: true, phoneNumber: true } },
+        resolvedByAdmin: { select: { id: true, fullName: true, phoneNumber: true } },
+      },
+    });
+  }
+
+  async adminResolveBusinessReport(adminUserId: string, reportId: string) {
+    const existing = await this.prisma.businessReport.findUnique({
+      where: { id: reportId },
+      select: { id: true, status: true },
+    });
+    if (!existing) throw new NotFoundException('Report not found');
+    if (existing.status !== 'open') {
+      throw new BadRequestException('Report is not open');
+    }
+
+    const updated = await this.prisma.businessReport.update({
+      where: { id: reportId },
+      data: {
+        status: 'resolved',
+        resolvedByAdminId: adminUserId,
+        resolvedAt: new Date(),
+      },
+      include: {
+        business: { select: { id: true, name: true, type: true, status: true, claimStatus: true } },
+        reporter: { select: { id: true, fullName: true, phoneNumber: true } },
+      },
+    });
+    return { ok: true as const, report: updated };
   }
 
   async createUmrahLead(userId: string, dto: CreateUmrahLeadDto) {

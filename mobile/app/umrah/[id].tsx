@@ -19,6 +19,9 @@ export default function UmrahAgencyScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState('');
+  const [reporting, setReporting] = useState(false);
+  const [reportReason, setReportReason] = useState('');
+  const [reportDetails, setReportDetails] = useState('');
 
   const load = async () => {
     if (!businessId) return;
@@ -61,6 +64,31 @@ export default function UmrahAgencyScreen() {
     }
   };
 
+  const submitReport = async () => {
+    if (!businessId) return;
+    const reason = reportReason.trim();
+    if (!reason) {
+      Alert.alert('Missing reason', 'Please enter a short reason.');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await apiClient.reportDirectoryBusiness(String(businessId), {
+        reason,
+        details: reportDetails.trim() ? reportDetails.trim() : undefined,
+      });
+      setReporting(false);
+      setReportReason('');
+      setReportDetails('');
+      Alert.alert('Submitted', 'Thanks. We will review this listing.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const branch = business?.branches?.[0] ?? null;
 
   return (
@@ -94,9 +122,36 @@ export default function UmrahAgencyScreen() {
           </View>
         </AppCard>
 
-        <ThemedButton title={busy ? 'Loading...' : 'Refresh'} variant="secondary" onPress={load} disabled={busy} />
+        <AppCard style={{ padding: 14, gap: 10 }}>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <ThemedButton
+              title={reporting ? 'Close Report' : 'Report listing'}
+              variant="secondary"
+              onPress={() => setReporting((v) => !v)}
+              disabled={busy}
+              style={{ flex: 1 }}
+            />
+            <ThemedButton title={busy ? 'Loading...' : 'Refresh'} variant="secondary" onPress={load} disabled={busy} style={{ flex: 1 }} />
+          </View>
+
+          {reporting ? (
+            <View style={{ gap: 10 }}>
+              <ThemedInput
+                placeholder="Reason (e.g., wrong phone, duplicate, scam)"
+                value={reportReason}
+                onChangeText={setReportReason}
+              />
+              <ThemedInput
+                placeholder="Details (optional)"
+                value={reportDetails}
+                onChangeText={setReportDetails}
+                multiline
+              />
+              <ThemedButton title={busy ? 'Submitting...' : 'Submit report'} onPress={submitReport} disabled={busy} />
+            </View>
+          ) : null}
+        </AppCard>
       </ThemedView>
     </ParallaxScrollView>
   );
 }
-

@@ -95,6 +95,20 @@ export type BusinessClaimStatus =
 export type BusinessClaimRequestStatus = 'pending' | 'approved' | 'rejected';
 export type BusinessClaimMethod = 'phone_otp' | 'docs' | 'in_person_code';
 
+export type BusinessReportStatus = 'open' | 'resolved';
+
+export type BusinessReport = {
+  id: string;
+  businessId: string;
+  reporterUserId: string;
+  status: BusinessReportStatus;
+  reason: string;
+  details?: string | null;
+  createdAt: string;
+  resolvedAt?: string | null;
+  resolvedByAdminId?: string | null;
+};
+
 export type DirectoryBusinessListItem = {
   id: string;
   name: string;
@@ -801,6 +815,13 @@ export class ApiClient {
 
   async getDirectoryBusiness(businessId: string) {
     return this.get(`/directory/businesses/${businessId}`);
+  }
+
+  async reportDirectoryBusiness(
+    businessId: string,
+    payload: { reason: string; details?: string },
+  ) {
+    return this.post(`/directory/businesses/${businessId}/report`, payload);
   }
 
   async createBusinessClaim(

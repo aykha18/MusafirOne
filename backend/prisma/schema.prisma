@@ -40,6 +40,8 @@ model User {
   ownedBusinesses   Business[]
   businessClaimsRequested BusinessClaim[]   @relation("BusinessClaimsRequested")
   businessClaimsReviewed  BusinessClaim[]   @relation("BusinessClaimsReviewed")
+  businessReportsReported BusinessReport[]  @relation("BusinessReportsReported")
+  businessReportsResolved BusinessReport[]  @relation("BusinessReportsResolved")
   umrahLeads        UmrahLead[]
   exchangeLeads     ExchangeLead[]
   exchangeConfirmations ExchangeConfirmation[]
@@ -175,6 +177,7 @@ model Business {
   reviews    BusinessReview[]
   favorites  ExchangeFavorite[]
   claims     BusinessClaim[]
+  reports    BusinessReport[]
   umrahLeads UmrahLead[]
 
   @@index([status])
@@ -221,6 +224,27 @@ model BusinessClaim {
 
   @@index([businessId])
   @@index([requesterUserId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model BusinessReport {
+  id               String              @id @default(uuid())
+  businessId       String
+  reporterUserId   String
+  status           BusinessReportStatus @default(open)
+  reason           String
+  details          String?
+  createdAt        DateTime            @default(now())
+  resolvedAt       DateTime?
+  resolvedByAdminId String?
+
+  business         Business            @relation(fields: [businessId], references: [id])
+  reporter         User                @relation("BusinessReportsReported", fields: [reporterUserId], references: [id])
+  resolvedByAdmin  User?               @relation("BusinessReportsResolved", fields: [resolvedByAdminId], references: [id])
+
+  @@index([businessId])
+  @@index([reporterUserId])
   @@index([status])
   @@index([createdAt])
 }
@@ -671,6 +695,11 @@ enum BusinessClaimMethod {
   phone_otp
   docs
   in_person_code
+}
+
+enum BusinessReportStatus {
+  open
+  resolved
 }
 
 enum ExchangeOfferDirection {

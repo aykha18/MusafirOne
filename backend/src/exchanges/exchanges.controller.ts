@@ -24,6 +24,7 @@ import { AdminGuard } from '../auth/admin.guard';
 import { CreateBranchDto } from './dto/create-branch.dto';
 import { CreateBusinessClaimDto } from './dto/create-business-claim.dto';
 import { CreateBusinessDto } from './dto/create-business.dto';
+import { CreateBusinessReportDto } from './dto/create-business-report.dto';
 import { CreateBusinessReviewDto } from './dto/create-business-review.dto';
 import { CreateExchangeConfirmationDto } from './dto/create-exchange-confirmation.dto';
 import { CreateExchangeLeadDto } from './dto/create-exchange-lead.dto';
@@ -32,6 +33,7 @@ import { CreateOfferDto } from './dto/create-offer.dto';
 import { CreateUmrahLeadDto } from './dto/create-umrah-lead.dto';
 import { ListDirectoryBusinessesDto } from './dto/list-directory-businesses.dto';
 import { ListAdminClaimsDto } from './dto/list-admin-claims.dto';
+import { ListAdminReportsDto } from './dto/list-admin-reports.dto';
 import { ListExchangesDto } from './dto/list-exchanges.dto';
 import { UpdateBranchDto } from './dto/update-branch.dto';
 import { UpdateBusinessDto } from './dto/update-business.dto';
@@ -127,6 +129,15 @@ export class DirectoryController {
   @Get('businesses/:id')
   getOne(@Param('id') id: string) {
     return this.exchangesService.getDirectoryBusiness(id);
+  }
+
+  @Post('businesses/:id/report')
+  report(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() dto: CreateBusinessReportDto,
+  ) {
+    return this.exchangesService.createBusinessReport(req.user.id, id, dto);
   }
 }
 
@@ -451,5 +462,21 @@ export class AdminClaimsController {
       `attachment; filename="${doc.fileName.replace(/"/g, '')}"`,
     );
     createReadStream(resolvedPath).pipe(res);
+  }
+}
+
+@UseGuards(AuthGuard('jwt'), AdminGuard)
+@Controller('admin/reports')
+export class AdminReportsController {
+  constructor(private readonly exchangesService: ExchangesService) {}
+
+  @Get()
+  list(@Query() query: ListAdminReportsDto) {
+    return this.exchangesService.adminListBusinessReports(query.status);
+  }
+
+  @Patch(':id/resolve')
+  resolve(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.exchangesService.adminResolveBusinessReport(req.user.id, id);
   }
 }

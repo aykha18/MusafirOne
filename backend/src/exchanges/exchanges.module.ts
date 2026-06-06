@@ -3,6 +3,7 @@ import { AuthModule } from '../auth/auth.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import {
   AdminClaimsController,
+  AdminReportsController,
   AdminBusinessesController,
   AdminReviewsController,
   BusinessesController,
@@ -28,6 +29,7 @@ import { ExchangesService } from './exchanges.service';
     MeExchangeFavoritesController,
     MeExchangeAlertsController,
     AdminClaimsController,
+    AdminReportsController,
   ],
   providers: [ExchangesService],
   exports: [ExchangesService],

@@ -10,6 +10,7 @@ import Logs from './pages/Logs'
 import Users from './pages/Users'
 import Disputes from './pages/Disputes'
 import Claims from './pages/Claims'
+import Reports from './pages/Reports'
 
 const router = createBrowserRouter([
   {
@@ -35,6 +36,10 @@ const router = createBrowserRouter([
       {
         path: '/claims',
         element: <Claims />,
+      },
+      {
+        path: '/reports',
+        element: <Reports />,
       },
     ],
   },

@@ -71,6 +71,9 @@ export default function ExchangeDetailScreen() {
   const [serviceScore, setServiceScore] = useState('5');
   const [speedScore, setSpeedScore] = useState('5');
   const [comment, setComment] = useState('');
+  const [reporting, setReporting] = useState(false);
+  const [reportReason, setReportReason] = useState('');
+  const [reportDetails, setReportDetails] = useState('');
 
   const selectedBranch = useMemo(() => {
     if (!business) return null;
@@ -214,6 +217,31 @@ export default function ExchangeDetailScreen() {
     }
   };
 
+  const submitReport = async () => {
+    if (!businessId) return;
+    const reason = reportReason.trim();
+    if (!reason) {
+      Alert.alert('Missing reason', 'Please enter a short reason.');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await apiClient.reportDirectoryBusiness(String(businessId), {
+        reason,
+        details: reportDetails.trim() ? reportDetails.trim() : undefined,
+      });
+      setReporting(false);
+      setReportReason('');
+      setReportDetails('');
+      Alert.alert('Submitted', 'Thanks. We will review this listing.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <ParallaxScrollView headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }} headerImage={null}>
       {busy && !business ? (
@@ -253,6 +281,36 @@ export default function ExchangeDetailScreen() {
                 fullWidth
               />
             </View>
+          </AppCard>
+
+          <AppCard style={styles.card}>
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <ThemedButton
+                title={reporting ? 'Close Report' : 'Report listing'}
+                variant="secondary"
+                onPress={() => setReporting((v) => !v)}
+                disabled={busy}
+                style={{ flex: 1 }}
+              />
+              <ThemedButton title={busy ? 'Loading...' : 'Refresh'} variant="secondary" onPress={load} disabled={busy} style={{ flex: 1 }} />
+            </View>
+
+            {reporting ? (
+              <View style={{ marginTop: 10, gap: 10 }}>
+                <ThemedInput
+                  placeholder="Reason (e.g., wrong phone, duplicate, scam)"
+                  value={reportReason}
+                  onChangeText={setReportReason}
+                />
+                <ThemedInput
+                  placeholder="Details (optional)"
+                  value={reportDetails}
+                  onChangeText={setReportDetails}
+                  multiline
+                />
+                <ThemedButton title={busy ? 'Submitting...' : 'Submit report'} onPress={submitReport} disabled={busy} />
+              </View>
+            ) : null}
           </AppCard>
 
           <AppCard style={styles.card}>

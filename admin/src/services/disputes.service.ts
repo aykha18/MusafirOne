@@ -1,12 +1,14 @@
 import api from './api';
 
-export enum DisputeStatus {
-  OPEN = 'OPEN',
-  UNDER_REVIEW = 'UNDER_REVIEW',
-  RESOLVED_VALID = 'RESOLVED_VALID',
-  RESOLVED_INVALID = 'RESOLVED_INVALID',
-  DISMISSED = 'DISMISSED',
-}
+export const DisputeStatus = {
+  OPEN: 'OPEN',
+  UNDER_REVIEW: 'UNDER_REVIEW',
+  RESOLVED_VALID: 'RESOLVED_VALID',
+  RESOLVED_INVALID: 'RESOLVED_INVALID',
+  DISMISSED: 'DISMISSED',
+} as const;
+
+export type DisputeStatus = (typeof DisputeStatus)[keyof typeof DisputeStatus];
 
 export interface Dispute {
   id: string;

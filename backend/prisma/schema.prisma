@@ -38,6 +38,8 @@ model User {
   featureVotes      FeatureVote[]
   featureIdeasSubmitted FeatureIdea[]        @relation("FeatureIdeaSubmittedBy")
   ownedBusinesses   Business[]
+  businessClaimsRequested BusinessClaim[]   @relation("BusinessClaimsRequested")
+  businessClaimsReviewed  BusinessClaim[]   @relation("BusinessClaimsReviewed")
   exchangeLeads     ExchangeLead[]
   exchangeConfirmations ExchangeConfirmation[]
   businessReviews   BusinessReview[]
@@ -168,12 +170,37 @@ model Business {
   branches   BusinessBranch[]
   reviews    BusinessReview[]
   favorites  ExchangeFavorite[]
+  claims     BusinessClaim[]
 
   @@index([status])
   @@index([type])
   @@index([ownerUserId])
   @@index([claimStatus])
   @@index([importBatchId])
+}
+
+model BusinessClaim {
+  id               String                   @id @default(uuid())
+  businessId       String
+  requesterUserId  String
+  status           BusinessClaimRequestStatus @default(pending)
+  method           BusinessClaimMethod
+  phoneToVerify    String?
+  docsJson         String?
+  rejectionReason  String?
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+  reviewedAt       DateTime?
+  reviewedByAdminId String?
+
+  business         Business                 @relation(fields: [businessId], references: [id])
+  requester        User                     @relation("BusinessClaimsRequested", fields: [requesterUserId], references: [id])
+  reviewedByAdmin  User?                    @relation("BusinessClaimsReviewed", fields: [reviewedByAdminId], references: [id])
+
+  @@index([businessId])
+  @@index([requesterUserId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model BusinessBranch {
@@ -610,6 +637,18 @@ enum ImportSourceType {
   api
   partner
   other
+}
+
+enum BusinessClaimRequestStatus {
+  pending
+  approved
+  rejected
+}
+
+enum BusinessClaimMethod {
+  phone_otp
+  docs
+  in_person_code
 }
 
 enum ExchangeOfferDirection {

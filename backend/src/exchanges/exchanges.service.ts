@@ -4,9 +4,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { BusinessStatus, BusinessType } from '@prisma/client';
+import { BusinessClaimRequestStatus, BusinessStatus, BusinessType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateBranchDto } from './dto/create-branch.dto';
+import { CreateBusinessClaimDto } from './dto/create-business-claim.dto';
 import { CreateBusinessDto } from './dto/create-business.dto';
 import { CreateBusinessReviewDto } from './dto/create-business-review.dto';
 import { CreateExchangeConfirmationDto } from './dto/create-exchange-confirmation.dto';
@@ -699,6 +700,183 @@ export class ExchangesService {
         },
       },
     });
+  }
+
+  async createBusinessClaim(
+    userId: string,
+    businessId: string,
+    dto: CreateBusinessClaimDto,
+  ) {
+    const business = await this.prisma.business.findUnique({
+      where: { id: businessId },
+      select: {
+        id: true,
+        status: true,
+        ownerUserId: true,
+        claimStatus: true,
+      },
+    });
+    if (!business || business.status !== 'active') {
+      throw new NotFoundException('Business not found');
+    }
+    if (business.ownerUserId) {
+      throw new BadRequestException('Business is already owned');
+    }
+    if (business.claimStatus === 'claimed') {
+      throw new BadRequestException('Business is already claimed');
+    }
+
+    const existingPending = await this.prisma.businessClaim.findFirst({
+      where: {
+        businessId,
+        status: 'pending',
+      },
+      select: { id: true },
+    });
+    if (existingPending) {
+      throw new BadRequestException('A claim is already pending for this business');
+    }
+
+    const created = await this.prisma.businessClaim.create({
+      data: {
+        businessId,
+        requesterUserId: userId,
+        method: dto.method as any,
+        phoneToVerify: dto.phoneToVerify?.trim() ? dto.phoneToVerify.trim() : null,
+        docsJson: dto.docsJson?.trim() ? dto.docsJson.trim() : null,
+        status: 'pending',
+      },
+      include: {
+        business: { select: { id: true, name: true, type: true } },
+      },
+    });
+
+    await this.prisma.business.update({
+      where: { id: businessId },
+      data: { claimStatus: 'claim_requested' },
+    });
+
+    return created;
+  }
+
+  async listMyBusinessClaims(userId: string) {
+    const claims = await this.prisma.businessClaim.findMany({
+      where: { requesterUserId: userId },
+      orderBy: [{ createdAt: 'desc' }],
+      take: 50,
+      include: {
+        business: {
+          select: { id: true, name: true, type: true, claimStatus: true, isVerified: true },
+        },
+      },
+    });
+    return claims.map((c) => ({
+      id: c.id,
+      businessId: c.businessId,
+      businessName: c.business.name,
+      businessType: c.business.type,
+      businessClaimStatus: c.business.claimStatus,
+      status: c.status,
+      method: c.method,
+      rejectionReason: c.rejectionReason,
+      createdAt: c.createdAt,
+      reviewedAt: c.reviewedAt,
+    }));
+  }
+
+  async adminListBusinessClaims(status?: string) {
+    const where =
+      status && ['pending', 'approved', 'rejected'].includes(status)
+        ? { status: status as BusinessClaimRequestStatus }
+        : undefined;
+    return this.prisma.businessClaim.findMany({
+      where,
+      orderBy: [{ createdAt: 'desc' }],
+      take: 200,
+      include: {
+        business: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            status: true,
+            claimStatus: true,
+            isVerified: true,
+            ownerUserId: true,
+          },
+        },
+        requester: { select: { id: true, fullName: true, phoneNumber: true } },
+        reviewedByAdmin: { select: { id: true, fullName: true, phoneNumber: true } },
+      },
+    });
+  }
+
+  async adminApproveBusinessClaim(adminUserId: string, claimId: string) {
+    const claim = await this.prisma.businessClaim.findUnique({
+      where: { id: claimId },
+      include: {
+        business: true,
+      },
+    });
+    if (!claim) throw new NotFoundException('Claim not found');
+    if (claim.status !== 'pending') {
+      throw new BadRequestException('Claim is not pending');
+    }
+
+    const updated = await this.prisma.businessClaim.update({
+      where: { id: claimId },
+      data: {
+        status: 'approved',
+        reviewedAt: new Date(),
+        reviewedByAdminId: adminUserId,
+        rejectionReason: null,
+      },
+    });
+
+    await this.prisma.business.update({
+      where: { id: claim.businessId },
+      data: {
+        ownerUserId: claim.requesterUserId,
+        claimStatus: 'claimed',
+        claimedAt: new Date(),
+        claimedByUserId: claim.requesterUserId,
+        status: claim.business.status === 'pending' ? 'active' : claim.business.status,
+      },
+    });
+
+    return { ok: true as const, claim: updated };
+  }
+
+  async adminRejectBusinessClaim(
+    adminUserId: string,
+    claimId: string,
+    rejectionReason?: string,
+  ) {
+    const claim = await this.prisma.businessClaim.findUnique({
+      where: { id: claimId },
+      include: { business: true },
+    });
+    if (!claim) throw new NotFoundException('Claim not found');
+    if (claim.status !== 'pending') {
+      throw new BadRequestException('Claim is not pending');
+    }
+
+    const updated = await this.prisma.businessClaim.update({
+      where: { id: claimId },
+      data: {
+        status: 'rejected',
+        reviewedAt: new Date(),
+        reviewedByAdminId: adminUserId,
+        rejectionReason: rejectionReason?.trim() ? rejectionReason.trim() : null,
+      },
+    });
+
+    await this.prisma.business.update({
+      where: { id: claim.businessId },
+      data: { claimStatus: 'claim_rejected' },
+    });
+
+    return { ok: true as const, claim: updated };
   }
 
   async ownerCreateBusiness(userId: string, dto: CreateBusinessDto) {

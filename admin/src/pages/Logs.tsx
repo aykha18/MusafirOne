@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { logsService, Log } from '../services/logs.service';
+import { logsService, type Log } from '../services/logs.service';
 import { Clock } from 'lucide-react';
 
 const Logs: React.FC = () => {

@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { disputesService, Dispute, DisputeStatus } from '../services/disputes.service';
-import { AlertCircle, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { disputesService, DisputeStatus, type Dispute } from '../services/disputes.service';
 
 const Disputes: React.FC = () => {
   const [disputes, setDisputes] = useState<Dispute[]>([]);

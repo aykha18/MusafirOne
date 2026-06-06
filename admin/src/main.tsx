@@ -9,6 +9,7 @@ import Login from './pages/Login'
 import Logs from './pages/Logs'
 import Users from './pages/Users'
 import Disputes from './pages/Disputes'
+import Claims from './pages/Claims'
 
 const router = createBrowserRouter([
   {
@@ -30,6 +31,10 @@ const router = createBrowserRouter([
       {
         path: '/disputes',
         element: <Disputes />,
+      },
+      {
+        path: '/claims',
+        element: <Claims />,
       },
     ],
   },

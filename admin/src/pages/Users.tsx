@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { usersService, User } from '../services/users.service';
-import { CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import { usersService, type User } from '../services/users.service';
+import { CheckCircle, XCircle } from 'lucide-react';
 
 const Users: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);

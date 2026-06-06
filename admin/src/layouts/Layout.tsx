@@ -43,6 +43,11 @@ const Layout: React.FC = () => {
                 System Logs
               </Link>
             </li>
+            <li className="mb-2">
+              <Link to="/claims" className={`block p-2 rounded ${isActive('/claims')}`}>
+                Claims
+              </Link>
+            </li>
           </ul>
         </nav>
         <div className="p-4 border-t">

@@ -104,6 +104,39 @@ export default function UmrahScreen() {
     await Linking.openURL(url);
   };
 
+  const claimLabel = (status: DirectoryBusinessListItem['claimStatus']) => {
+    if (status === 'claim_requested') return 'Claim in review';
+    if (status === 'claim_rejected') return 'Claim rejected';
+    if (status === 'claimed') return 'Claimed';
+    return 'Unclaimed';
+  };
+
+  const canClaim = (status: DirectoryBusinessListItem['claimStatus']) => {
+    return status === 'unclaimed' || status === 'claim_rejected';
+  };
+
+  const submitClaim = async (businessId: string) => {
+    Alert.alert('Claim this business?', 'We will review your request.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Submit',
+        onPress: async () => {
+          setBusy(true);
+          setError(null);
+          try {
+            await apiClient.createBusinessClaim(businessId, { method: 'docs' });
+            await refresh();
+            Alert.alert('Submitted', 'Your claim is in review.');
+          } catch (e) {
+            setError(e instanceof Error ? e.message : String(e));
+          } finally {
+            setBusy(false);
+          }
+        },
+      },
+    ]);
+  };
+
   return (
     <ParallaxScrollView
       headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
@@ -141,9 +174,7 @@ export default function UmrahScreen() {
                 <ThemedText type="defaultSemiBold" style={{ flex: 1 }}>
                   {it.name} {it.isVerified ? '✓' : ''}
                 </ThemedText>
-                {it.claimStatus !== 'claimed' ? (
-                  <ThemedText style={{ opacity: 0.7 }}>Unclaimed</ThemedText>
-                ) : null}
+                <ThemedText style={{ opacity: 0.7 }}>{claimLabel(it.claimStatus)}</ThemedText>
               </View>
               <ThemedText style={{ opacity: 0.75 }}>
                 {it.city} • {it.address}
@@ -161,6 +192,11 @@ export default function UmrahScreen() {
                 <Pressable onPress={() => void openDirections(it)}>
                   <ThemedText style={styles.link}>Directions</ThemedText>
                 </Pressable>
+                {canClaim(it.claimStatus) ? (
+                  <Pressable onPress={() => void submitClaim(it.id)}>
+                    <ThemedText style={styles.link}>Claim</ThemedText>
+                  </Pressable>
+                ) : null}
                 <ThemedText style={{ opacity: 0.6 }}>
                   {it.openNow === null ? '' : it.openNow ? 'Open now' : 'Closed'}
                 </ThemedText>

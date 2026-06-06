@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { dashboardService, DashboardStats } from '../services/dashboard.service';
+import { dashboardService, type DashboardStats } from '../services/dashboard.service';
 import { Users, AlertCircle, Package, RefreshCw } from 'lucide-react';
 
 const Dashboard: React.FC = () => {

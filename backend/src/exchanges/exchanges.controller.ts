@@ -13,6 +13,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { AdminGuard } from '../auth/admin.guard';
 import { CreateBranchDto } from './dto/create-branch.dto';
+import { CreateBusinessClaimDto } from './dto/create-business-claim.dto';
 import { CreateBusinessDto } from './dto/create-business.dto';
 import { CreateBusinessReviewDto } from './dto/create-business-review.dto';
 import { CreateExchangeConfirmationDto } from './dto/create-exchange-confirmation.dto';
@@ -20,6 +21,7 @@ import { CreateExchangeLeadDto } from './dto/create-exchange-lead.dto';
 import { CreateExchangeRateAlertDto } from './dto/create-exchange-rate-alert.dto';
 import { CreateOfferDto } from './dto/create-offer.dto';
 import { ListDirectoryBusinessesDto } from './dto/list-directory-businesses.dto';
+import { ListAdminClaimsDto } from './dto/list-admin-claims.dto';
 import { ListExchangesDto } from './dto/list-exchanges.dto';
 import { UpdateBranchDto } from './dto/update-branch.dto';
 import { UpdateBusinessDto } from './dto/update-business.dto';
@@ -141,6 +143,15 @@ export class BusinessesController {
     return this.exchangesService.ownerCreateBusiness(req.user.id, dto);
   }
 
+  @Post('businesses/:id/claim')
+  createClaim(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') businessId: string,
+    @Body() dto: CreateBusinessClaimDto,
+  ) {
+    return this.exchangesService.createBusinessClaim(req.user.id, businessId, dto);
+  }
+
   @Patch('businesses/:id')
   updateBusiness(
     @Req() req: AuthenticatedRequest,
@@ -208,6 +219,17 @@ export class BusinessesController {
   }
 }
 
+@UseGuards(AuthGuard('jwt'))
+@Controller('me/claims')
+export class MeClaimsController {
+  constructor(private readonly exchangesService: ExchangesService) {}
+
+  @Get()
+  list(@Req() req: AuthenticatedRequest) {
+    return this.exchangesService.listMyBusinessClaims(req.user.id);
+  }
+}
+
 @UseGuards(AuthGuard('jwt'), AdminGuard)
 @Controller('admin/reviews')
 export class AdminReviewsController {
@@ -269,5 +291,30 @@ export class MeExchangeAlertsController {
   @Delete(':id')
   remove(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.exchangesService.deleteExchangeRateAlert(req.user.id, id);
+  }
+}
+
+@UseGuards(AuthGuard('jwt'), AdminGuard)
+@Controller('admin/claims')
+export class AdminClaimsController {
+  constructor(private readonly exchangesService: ExchangesService) {}
+
+  @Get()
+  list(@Query() query: ListAdminClaimsDto) {
+    return this.exchangesService.adminListBusinessClaims(query.status);
+  }
+
+  @Patch(':id/approve')
+  approve(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.exchangesService.adminApproveBusinessClaim(req.user.id, id);
+  }
+
+  @Patch(':id/reject')
+  reject(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body('rejectionReason') rejectionReason?: string,
+  ) {
+    return this.exchangesService.adminRejectBusinessClaim(req.user.id, id, rejectionReason);
   }
 }

@@ -161,7 +161,10 @@ export default function BusinessDetailScreen() {
   const loadLeads = async () => {
     if (!businessId) return;
     try {
-      const res = (await apiClient.listBusinessLeads(businessId)) as any;
+      const res =
+        business?.type === 'umrah'
+          ? ((await apiClient.listUmrahLeads(businessId)) as any)
+          : ((await apiClient.listBusinessLeads(businessId)) as any);
       setLeads(Array.isArray(res) ? res : []);
     } catch {
       setLeads([]);
@@ -585,22 +588,39 @@ export default function BusinessDetailScreen() {
             <ThemedText type="defaultSemiBold">Leads</ThemedText>
             <ThemedButton title={busy ? 'Refreshing...' : 'Refresh'} variant="secondary" onPress={loadLeads} disabled={busy} />
             <ThemedView style={{ gap: 10 }}>
-              {leads.map((l: any) => (
-                <AppCard key={String(l.id)} variant="soft" style={{ padding: 12, gap: 6 }}>
-                  <ThemedText type="defaultSemiBold">
-                    {l?.user?.fullName ?? 'User'} • {String(l?.channel ?? '').toUpperCase()}
-                  </ThemedText>
-                  <ThemedText style={{ opacity: 0.75 }}>
-                    {String(l?.fromCurrency ?? '')} → {String(l?.toCurrency ?? '')} • {String(l?.amount ?? '')}
-                  </ThemedText>
-                  <ThemedText style={{ opacity: 0.75 }}>
-                    {l?.branch ? `${l.branch.city} • ${l.branch.address}` : ''}
-                  </ThemedText>
-                  {l?.createdAt ? (
-                    <ThemedText style={{ opacity: 0.65 }}>{formatTimestamp(String(l.createdAt))}</ThemedText>
-                  ) : null}
-                </AppCard>
-              ))}
+              {business?.type === 'umrah'
+                ? leads.map((l: any) => (
+                    <AppCard key={String(l.id)} variant="soft" style={{ padding: 12, gap: 6 }}>
+                      <ThemedText type="defaultSemiBold">
+                        {l?.user?.fullName ?? l?.fullName ?? 'User'}
+                      </ThemedText>
+                      <ThemedText style={{ opacity: 0.75 }}>
+                        {String(l?.user?.phoneNumber ?? l?.phoneNumber ?? '')}
+                      </ThemedText>
+                      {l?.message ? (
+                        <ThemedText style={{ opacity: 0.8 }}>{String(l.message)}</ThemedText>
+                      ) : null}
+                      {l?.createdAt ? (
+                        <ThemedText style={{ opacity: 0.65 }}>{formatTimestamp(String(l.createdAt))}</ThemedText>
+                      ) : null}
+                    </AppCard>
+                  ))
+                : leads.map((l: any) => (
+                    <AppCard key={String(l.id)} variant="soft" style={{ padding: 12, gap: 6 }}>
+                      <ThemedText type="defaultSemiBold">
+                        {l?.user?.fullName ?? 'User'} • {String(l?.channel ?? '').toUpperCase()}
+                      </ThemedText>
+                      <ThemedText style={{ opacity: 0.75 }}>
+                        {String(l?.fromCurrency ?? '')} → {String(l?.toCurrency ?? '')} • {String(l?.amount ?? '')}
+                      </ThemedText>
+                      <ThemedText style={{ opacity: 0.75 }}>
+                        {l?.branch ? `${l.branch.city} • ${l.branch.address}` : ''}
+                      </ThemedText>
+                      {l?.createdAt ? (
+                        <ThemedText style={{ opacity: 0.65 }}>{formatTimestamp(String(l.createdAt))}</ThemedText>
+                      ) : null}
+                    </AppCard>
+                  ))}
               {leads.length === 0 ? (
                 <ThemedText style={{ opacity: 0.75 }}>No leads yet.</ThemedText>
               ) : null}

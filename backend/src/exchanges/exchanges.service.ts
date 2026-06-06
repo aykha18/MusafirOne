@@ -14,6 +14,7 @@ import { CreateExchangeConfirmationDto } from './dto/create-exchange-confirmatio
 import { CreateExchangeLeadDto } from './dto/create-exchange-lead.dto';
 import { CreateExchangeRateAlertDto } from './dto/create-exchange-rate-alert.dto';
 import { CreateOfferDto } from './dto/create-offer.dto';
+import { CreateUmrahLeadDto } from './dto/create-umrah-lead.dto';
 import { ListDirectoryBusinessesDto } from './dto/list-directory-businesses.dto';
 import { ListExchangesDto } from './dto/list-exchanges.dto';
 import { UpdateBranchDto } from './dto/update-branch.dto';
@@ -902,6 +903,52 @@ export class ExchangesService {
     });
 
     return { ok: true as const, claim: updated };
+  }
+
+  async createUmrahLead(userId: string, dto: CreateUmrahLeadDto) {
+    const businessId = dto.businessId.trim();
+    const business = await this.prisma.business.findUnique({
+      where: { id: businessId },
+      select: { id: true, status: true, type: true },
+    });
+    if (!business || business.status !== 'active' || business.type !== 'umrah') {
+      throw new NotFoundException('Business not found');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, fullName: true, phoneNumber: true },
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    const created = await this.prisma.umrahLead.create({
+      data: {
+        userId,
+        businessId,
+        fullName: user.fullName,
+        phoneNumber: user.phoneNumber,
+        message: dto.message?.trim() ? dto.message.trim() : null,
+      },
+    });
+
+    return { ...created, ok: true as const };
+  }
+
+  async ownerListUmrahLeads(userId: string, businessId: string) {
+    const business = await this.assertBusinessOwner(userId, businessId);
+    if (business.type !== 'umrah') {
+      throw new BadRequestException('Only supported for umrah businesses');
+    }
+    return this.prisma.umrahLead.findMany({
+      where: { businessId },
+      orderBy: [{ createdAt: 'desc' }],
+      take: 200,
+      include: {
+        user: {
+          select: { id: true, fullName: true, phoneNumber: true, verificationLevel: true },
+        },
+      },
+    });
   }
 
   async ownerCreateBusiness(userId: string, dto: CreateBusinessDto) {

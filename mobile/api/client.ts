@@ -133,6 +133,21 @@ export type BusinessClaim = {
   reviewedAt?: string | null;
 };
 
+export type UmrahLead = {
+  id: string;
+  userId: string;
+  businessId: string;
+  fullName: string;
+  phoneNumber: string;
+  message?: string | null;
+  createdAt: string;
+  user?: {
+    id: string;
+    fullName: string;
+    phoneNumber: string;
+    verificationLevel: number;
+  };
+};
 export type MyBusiness = {
   id: string;
   ownerUserId?: string | null;
@@ -797,6 +812,14 @@ export class ApiClient {
 
   async listMyClaims() {
     return this.get<BusinessClaim[]>('/me/claims');
+  }
+
+  async createUmrahLead(payload: { businessId: string; message?: string }) {
+    return this.post('/umrah/leads', payload);
+  }
+
+  async listUmrahLeads(businessId: string) {
+    return this.get<UmrahLead[]>(`/businesses/${businessId}/umrah/leads`);
   }
 
   async listExchanges(params?: {

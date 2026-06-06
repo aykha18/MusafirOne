@@ -20,6 +20,7 @@ import { CreateExchangeConfirmationDto } from './dto/create-exchange-confirmatio
 import { CreateExchangeLeadDto } from './dto/create-exchange-lead.dto';
 import { CreateExchangeRateAlertDto } from './dto/create-exchange-rate-alert.dto';
 import { CreateOfferDto } from './dto/create-offer.dto';
+import { CreateUmrahLeadDto } from './dto/create-umrah-lead.dto';
 import { ListDirectoryBusinessesDto } from './dto/list-directory-businesses.dto';
 import { ListAdminClaimsDto } from './dto/list-admin-claims.dto';
 import { ListExchangesDto } from './dto/list-exchanges.dto';
@@ -207,6 +208,11 @@ export class BusinessesController {
     return this.exchangesService.ownerListLeads(req.user.id, businessId);
   }
 
+  @Get('businesses/:id/umrah/leads')
+  listUmrahLeads(@Req() req: AuthenticatedRequest, @Param('id') businessId: string) {
+    return this.exchangesService.ownerListUmrahLeads(req.user.id, businessId);
+  }
+
   @Post('confirmations/:id/confirm')
   confirmExchange(
     @Req() req: AuthenticatedRequest,
@@ -227,6 +233,17 @@ export class MeClaimsController {
   @Get()
   list(@Req() req: AuthenticatedRequest) {
     return this.exchangesService.listMyBusinessClaims(req.user.id);
+  }
+}
+
+@UseGuards(AuthGuard('jwt'))
+@Controller('umrah')
+export class UmrahLeadsController {
+  constructor(private readonly exchangesService: ExchangesService) {}
+
+  @Post('leads')
+  createLead(@Req() req: AuthenticatedRequest, @Body() dto: CreateUmrahLeadDto) {
+    return this.exchangesService.createUmrahLead(req.user.id, dto);
   }
 }
 

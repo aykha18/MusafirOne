@@ -40,6 +40,7 @@ model User {
   ownedBusinesses   Business[]
   businessClaimsRequested BusinessClaim[]   @relation("BusinessClaimsRequested")
   businessClaimsReviewed  BusinessClaim[]   @relation("BusinessClaimsReviewed")
+  umrahLeads        UmrahLead[]
   exchangeLeads     ExchangeLead[]
   exchangeConfirmations ExchangeConfirmation[]
   businessReviews   BusinessReview[]
@@ -171,12 +172,30 @@ model Business {
   reviews    BusinessReview[]
   favorites  ExchangeFavorite[]
   claims     BusinessClaim[]
+  umrahLeads UmrahLead[]
 
   @@index([status])
   @@index([type])
   @@index([ownerUserId])
   @@index([claimStatus])
   @@index([importBatchId])
+}
+
+model UmrahLead {
+  id         String   @id @default(uuid())
+  userId     String
+  businessId String
+  fullName   String
+  phoneNumber String
+  message    String?
+  createdAt  DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id])
+  business   Business @relation(fields: [businessId], references: [id])
+
+  @@index([userId])
+  @@index([businessId])
+  @@index([createdAt])
 }
 
 model BusinessClaim {

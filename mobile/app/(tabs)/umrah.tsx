@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Alert, Linking, Pressable, StyleSheet, View } from 'react-native';
+import { useRouter } from 'expo-router';
 
 import { apiClient, type DirectoryBusinessListItem } from '@/api/client';
 import { CitySelector } from '@/components/city-selector';
@@ -12,6 +13,7 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Fonts } from '@/constants/theme';
 
 export default function UmrahScreen() {
+  const router = useRouter();
   const [items, setItems] = useState<DirectoryBusinessListItem[]>([]);
   const [city, setCity] = useState('');
   const [busy, setBusy] = useState(false);
@@ -137,6 +139,10 @@ export default function UmrahScreen() {
     ]);
   };
 
+  const openInquiry = (businessId: string) => {
+    router.push(`/umrah/${businessId}`);
+  };
+
   const showBadgesHelp = () => {
     Alert.alert(
       'Badges',
@@ -203,6 +209,9 @@ export default function UmrahScreen() {
                 {it.city} • {it.address}
               </ThemedText>
               <View style={{ flexDirection: 'row', gap: 14, flexWrap: 'wrap' }}>
+                <Pressable onPress={() => openInquiry(it.id)}>
+                  <ThemedText style={styles.link}>Inquiry</ThemedText>
+                </Pressable>
                 <Pressable onPress={() => void openPhone(it.phone)}>
                   <ThemedText style={styles.link}>Call</ThemedText>
                 </Pressable>

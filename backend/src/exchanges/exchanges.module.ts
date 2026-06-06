@@ -10,6 +10,7 @@ import {
   MeClaimsController,
   MeExchangeAlertsController,
   MeExchangeFavoritesController,
+  UmrahLeadsController,
 } from './exchanges.controller';
 import { ExchangesService } from './exchanges.service';
 
@@ -19,6 +20,7 @@ import { ExchangesService } from './exchanges.service';
     ExchangesController,
     DirectoryController,
     MeClaimsController,
+    UmrahLeadsController,
     AdminBusinessesController,
     BusinessesController,
     AdminReviewsController,

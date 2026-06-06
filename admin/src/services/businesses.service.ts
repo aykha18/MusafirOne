@@ -26,6 +26,10 @@ export const businessesService = {
     });
     return response.data;
   },
+  reject: async (businessId: string) => {
+    const response = await api.post(`/admin/businesses/${businessId}/reject`, {});
+    return response.data;
+  },
   merge: async (targetBusinessId: string, sourceBusinessId: string) => {
     const response = await api.post(`/admin/businesses/${targetBusinessId}/merge`, {
       sourceBusinessId,

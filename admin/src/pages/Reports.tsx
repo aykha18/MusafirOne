@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { reportsService, type AdminReport, type ReportStatus } from '../services/reports.service';
+import { businessesService } from '../services/businesses.service';
 
 const Reports: React.FC = () => {
   const [items, setItems] = useState<AdminReport[]>([]);
@@ -36,6 +37,18 @@ const Reports: React.FC = () => {
       await load();
     } catch {
       alert('Failed to resolve report');
+    }
+  };
+
+  const rejectAndResolve = async (report: AdminReport) => {
+    const businessId = report.business?.id ?? report.businessId;
+    if (!window.confirm(`Reject business ${businessId} and resolve this report?`)) return;
+    try {
+      await businessesService.reject(businessId);
+      await reportsService.resolve(report.id);
+      await load();
+    } catch {
+      alert('Failed to reject business / resolve report');
     }
   };
 
@@ -98,12 +111,20 @@ const Reports: React.FC = () => {
                 <td className="p-3">{new Date(r.createdAt).toLocaleString()}</td>
                 <td className="p-3">
                   {r.status === 'open' ? (
-                    <button
-                      onClick={() => resolve(r.id)}
-                      className="px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700"
-                    >
-                      Resolve
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => resolve(r.id)}
+                        className="px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700"
+                      >
+                        Resolve
+                      </button>
+                      <button
+                        onClick={() => rejectAndResolve(r)}
+                        className="px-3 py-1 rounded bg-red-600 text-white hover:bg-red-700"
+                      >
+                        Reject listing
+                      </button>
+                    </div>
                   ) : (
                     <span className="text-gray-500">—</span>
                   )}
@@ -132,4 +153,3 @@ const Reports: React.FC = () => {
 };
 
 export default Reports;
-

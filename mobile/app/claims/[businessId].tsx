@@ -76,6 +76,25 @@ export default function ClaimBusinessScreen() {
       setOtpSent(true);
       Alert.alert('OTP sent', 'Enter the code you received.');
     } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      setError(message);
+      if (String(message).toLowerCase().includes('already pending')) {
+        setOtpSent(true);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const resendOtp = async () => {
+    if (!id) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await apiClient.resendBusinessClaimOtp(String(id));
+      setOtpSent(true);
+      Alert.alert('OTP sent', 'Enter the latest code you received.');
+    } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
@@ -159,6 +178,7 @@ export default function ClaimBusinessScreen() {
                 <ThemedView style={{ gap: 10 }}>
                   <ThemedInput placeholder="Enter OTP code" value={otpCode} onChangeText={setOtpCode} keyboardType="number-pad" />
                   <ThemedButton title={busy ? 'Verifying...' : 'Verify & Claim'} onPress={verifyOtp} disabled={busy} />
+                  <ThemedButton title={busy ? 'Sending...' : 'Resend OTP'} variant="secondary" onPress={resendOtp} disabled={busy} />
                 </ThemedView>
               ) : null}
             </ThemedView>
@@ -180,4 +200,3 @@ export default function ClaimBusinessScreen() {
     </ParallaxScrollView>
   );
 }
-

@@ -538,6 +538,15 @@ export default function ProfileScreen() {
                 <IconSymbol name="chevron.right" size={18} color={Colors[colorScheme ?? 'light'].icon} />
               </Pressable>
               <View style={[styles.menuDivider, { backgroundColor: Colors[colorScheme ?? 'light'].border }]} />
+              <Pressable onPress={() => router.push('/claims')} style={styles.menuRow}>
+                <View style={[styles.menuIcon, { backgroundColor: 'rgba(77, 163, 255, 0.14)' }]}>
+                  <IconSymbol name="checkmark.seal.fill" size={18} color={Colors[colorScheme ?? 'light'].tint} />
+                </View>
+                <ThemedText type="defaultSemiBold" style={styles.menuLabel}>My Claims</ThemedText>
+                <View style={{ flex: 1 }} />
+                <IconSymbol name="chevron.right" size={18} color={Colors[colorScheme ?? 'light'].icon} />
+              </Pressable>
+              <View style={[styles.menuDivider, { backgroundColor: Colors[colorScheme ?? 'light'].border }]} />
               <Pressable onPress={() => router.push('/favorites/exchanges')} style={styles.menuRow}>
                 <View style={[styles.menuIcon, { backgroundColor: 'rgba(255, 204, 0, 0.14)' }]}>
                   <IconSymbol name="star.fill" size={18} color="#FFCC00" />

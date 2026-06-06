@@ -849,6 +849,38 @@ export class ExchangesService {
     return { ok: true as const, approved: true as const };
   }
 
+  async resendBusinessClaimOtp(userId: string, businessId: string) {
+    const claim = await this.prisma.businessClaim.findFirst({
+      where: {
+        businessId,
+        requesterUserId: userId,
+        status: 'pending',
+        method: 'phone_otp',
+      },
+      orderBy: [{ createdAt: 'desc' }],
+    });
+    if (!claim) throw new NotFoundException('Claim not found');
+
+    const phone = claim.phoneToVerify?.trim() ? claim.phoneToVerify.trim() : null;
+    if (!phone) throw new BadRequestException('No phone to verify');
+
+    const cutoff = new Date(Date.now() - 60 * 1000);
+    const recentOtp = await this.prisma.otpRequest.findFirst({
+      where: {
+        phoneNumber: phone,
+        createdAt: { gt: cutoff },
+      },
+      orderBy: [{ createdAt: 'desc' }],
+      select: { id: true },
+    });
+    if (recentOtp) {
+      throw new BadRequestException('Please wait before requesting another OTP');
+    }
+
+    await this.authService.requestOtp({ phoneNumber: phone });
+    return { ok: true as const };
+  }
+
   async listMyBusinessClaims(userId: string) {
     const claims = await this.prisma.businessClaim.findMany({
       where: { requesterUserId: userId },

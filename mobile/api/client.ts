@@ -814,6 +814,10 @@ export class ApiClient {
     return this.post(`/businesses/${businessId}/claim/verify-otp`, { code });
   }
 
+  async resendBusinessClaimOtp(businessId: string) {
+    return this.post(`/businesses/${businessId}/claim/resend-otp`, {});
+  }
+
   async listMyClaims() {
     return this.get<BusinessClaim[]>('/me/claims');
   }

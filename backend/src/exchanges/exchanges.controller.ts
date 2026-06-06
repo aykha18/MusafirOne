@@ -163,6 +163,11 @@ export class BusinessesController {
     return this.exchangesService.verifyBusinessClaimOtp(req.user.id, businessId, dto.code);
   }
 
+  @Post('businesses/:id/claim/resend-otp')
+  resendClaimOtp(@Req() req: AuthenticatedRequest, @Param('id') businessId: string) {
+    return this.exchangesService.resendBusinessClaimOtp(req.user.id, businessId);
+  }
+
   @Patch('businesses/:id')
   updateBusiness(
     @Req() req: AuthenticatedRequest,

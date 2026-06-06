@@ -154,6 +154,9 @@ model Business {
   website    String?
   status     BusinessStatus @default(pending)
   claimStatus BusinessClaimStatus @default(unclaimed)
+  claimCodeHash String?
+  claimCodeIssuedAt DateTime?
+  claimCodeConsumedAt DateTime?
   claimedAt  DateTime?
   claimedByUserId String?
   isVerified Boolean        @default(false)

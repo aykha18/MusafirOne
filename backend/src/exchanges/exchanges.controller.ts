@@ -29,6 +29,7 @@ import { UpdateBusinessDto } from './dto/update-business.dto';
 import { UpdateOfferDto } from './dto/update-offer.dto';
 import { SetReviewHiddenDto } from './dto/set-review-hidden.dto';
 import { VerifyBusinessDto } from './dto/verify-business.dto';
+import { VerifyBusinessClaimCodeDto } from './dto/verify-business-claim-code.dto';
 import { VerifyBusinessClaimOtpDto } from './dto/verify-business-claim-otp.dto';
 import { ExchangesService } from './exchanges.service';
 
@@ -128,6 +129,11 @@ export class AdminBusinessesController {
   verify(@Param('id') id: string, @Body() dto: VerifyBusinessDto) {
     return this.exchangesService.adminVerifyBusiness(id, dto.isVerified);
   }
+
+  @Post(':id/claim-code')
+  generateClaimCode(@Param('id') id: string) {
+    return this.exchangesService.adminGenerateBusinessClaimCode(id);
+  }
 }
 
 @UseGuards(AuthGuard('jwt'))
@@ -166,6 +172,15 @@ export class BusinessesController {
   @Post('businesses/:id/claim/resend-otp')
   resendClaimOtp(@Req() req: AuthenticatedRequest, @Param('id') businessId: string) {
     return this.exchangesService.resendBusinessClaimOtp(req.user.id, businessId);
+  }
+
+  @Post('businesses/:id/claim/verify-code')
+  verifyClaimCode(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') businessId: string,
+    @Body() dto: VerifyBusinessClaimCodeDto,
+  ) {
+    return this.exchangesService.verifyBusinessClaimCode(req.user.id, businessId, dto.code);
   }
 
   @Patch('businesses/:id')

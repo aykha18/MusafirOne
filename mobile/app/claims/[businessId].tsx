@@ -20,10 +20,11 @@ export default function ClaimBusinessScreen() {
   const [error, setError] = useState<string | null>(null);
   const [business, setBusiness] = useState<any>(null);
 
-  const [method, setMethod] = useState<'phone_otp' | 'docs'>('phone_otp');
+  const [method, setMethod] = useState<'phone_otp' | 'docs' | 'in_person_code'>('phone_otp');
   const [phoneToVerify, setPhoneToVerify] = useState('');
   const [otpCode, setOtpCode] = useState('');
   const [otpSent, setOtpSent] = useState(false);
+  const [claimCode, setClaimCode] = useState('');
 
   const claimable = useMemo(() => {
     const status = String(business?.claimStatus ?? 'unclaimed');
@@ -121,6 +122,40 @@ export default function ClaimBusinessScreen() {
     }
   };
 
+  const verifyInPersonCode = async () => {
+    if (!id) return;
+    if (!claimable) {
+      Alert.alert('Not available', 'This business cannot be claimed right now.');
+      return;
+    }
+    const code = claimCode.trim();
+    if (!code) {
+      Alert.alert('Missing code', 'Enter the in-person code.');
+      return;
+    }
+
+    setBusy(true);
+    setError(null);
+    try {
+      try {
+        await apiClient.createBusinessClaim(String(id), { method: 'in_person_code' });
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        if (!String(message).toLowerCase().includes('already pending')) {
+          throw e;
+        }
+      }
+
+      await apiClient.verifyBusinessClaimCode(String(id), code);
+      Alert.alert('Approved', 'Business claimed successfully.');
+      router.replace(`/business/${String(id)}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const submitDocsClaim = async () => {
     if (!id) return;
     if (!claimable) {
@@ -160,6 +195,7 @@ export default function ClaimBusinessScreen() {
             options={[
               { value: 'phone_otp', label: 'Phone OTP' },
               { value: 'docs', label: 'Docs' },
+              { value: 'in_person_code', label: 'In-person code' },
             ]}
             onChange={(v) => setMethod(v as any)}
           />
@@ -181,6 +217,11 @@ export default function ClaimBusinessScreen() {
                   <ThemedButton title={busy ? 'Sending...' : 'Resend OTP'} variant="secondary" onPress={resendOtp} disabled={busy} />
                 </ThemedView>
               ) : null}
+            </ThemedView>
+          ) : method === 'in_person_code' ? (
+            <ThemedView style={{ gap: 10 }}>
+              <ThemedInput placeholder="Enter in-person code" value={claimCode} onChangeText={setClaimCode} keyboardType="number-pad" />
+              <ThemedButton title={busy ? 'Verifying...' : 'Verify Code & Claim'} onPress={verifyInPersonCode} disabled={busy} />
             </ThemedView>
           ) : (
             <ThemedView style={{ gap: 10 }}>

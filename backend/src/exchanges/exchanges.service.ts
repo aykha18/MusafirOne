@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { createHash, randomBytes } from 'crypto';
 import { BusinessClaimRequestStatus, BusinessStatus, BusinessType } from '@prisma/client';
 import { AuthService } from '../auth/auth.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -64,6 +65,16 @@ export class ExchangesService {
     private readonly prisma: PrismaService,
     private readonly authService: AuthService,
   ) {}
+
+  private hashCode(code: string): string {
+    return createHash('sha256').update(code).digest('hex');
+  }
+
+  private generateInPersonCode(): string {
+    const n = randomBytes(3).readUIntBE(0, 3) % 900000;
+    const value = 100000 + n;
+    return value.toString();
+  }
 
   private getReviewCooldownDays() {
     const raw = Number(process.env.REVIEW_COOLDOWN_DAYS ?? 30);
@@ -849,6 +860,82 @@ export class ExchangesService {
     return { ok: true as const, approved: true as const };
   }
 
+  async verifyBusinessClaimCode(userId: string, businessId: string, code: string) {
+    const claim = await this.prisma.businessClaim.findFirst({
+      where: {
+        businessId,
+        requesterUserId: userId,
+        status: 'pending',
+        method: 'in_person_code',
+      },
+      include: {
+        business: {
+          select: {
+            id: true,
+            status: true,
+            ownerUserId: true,
+            claimStatus: true,
+            claimCodeHash: true,
+            claimCodeIssuedAt: true,
+            claimCodeConsumedAt: true,
+          },
+        },
+      },
+      orderBy: [{ createdAt: 'desc' }],
+    });
+    if (!claim) throw new NotFoundException('Claim not found');
+    if (claim.business.ownerUserId) {
+      throw new BadRequestException('Business is already owned');
+    }
+    if (claim.business.claimStatus === 'claimed') {
+      throw new BadRequestException('Business is already claimed');
+    }
+
+    const issuedAt = claim.business.claimCodeIssuedAt;
+    const consumedAt = claim.business.claimCodeConsumedAt;
+    const storedHash = claim.business.claimCodeHash?.trim() ? claim.business.claimCodeHash.trim() : null;
+    if (!storedHash || !issuedAt || consumedAt) {
+      throw new BadRequestException('No active in-person code for this business');
+    }
+
+    const expiresMs = 7 * 24 * 60 * 60 * 1000;
+    if (Date.now() - issuedAt.getTime() > expiresMs) {
+      throw new BadRequestException('Code expired');
+    }
+
+    const providedHash = this.hashCode(code.trim());
+    if (providedHash !== storedHash) {
+      throw new BadRequestException('Invalid code');
+    }
+
+    const now = new Date();
+    await this.prisma.$transaction([
+      this.prisma.businessClaim.update({
+        where: { id: claim.id },
+        data: {
+          status: 'approved',
+          reviewedAt: now,
+          reviewedByAdminId: null,
+          rejectionReason: null,
+        },
+      }),
+      this.prisma.business.update({
+        where: { id: claim.businessId },
+        data: {
+          ownerUserId: claim.requesterUserId,
+          claimStatus: 'claimed',
+          claimedAt: now,
+          claimedByUserId: claim.requesterUserId,
+          status: claim.business.status === 'pending' ? 'active' : claim.business.status,
+          claimCodeHash: null,
+          claimCodeConsumedAt: now,
+        },
+      }),
+    ]);
+
+    return { ok: true as const, approved: true as const };
+  }
+
   async resendBusinessClaimOtp(userId: string, businessId: string) {
     const claim = await this.prisma.businessClaim.findFirst({
       where: {
@@ -879,6 +966,39 @@ export class ExchangesService {
 
     await this.authService.requestOtp({ phoneNumber: phone });
     return { ok: true as const };
+  }
+
+  async adminGenerateBusinessClaimCode(businessId: string) {
+    const business = await this.prisma.business.findUnique({
+      where: { id: businessId },
+      select: {
+        id: true,
+        status: true,
+        ownerUserId: true,
+        claimStatus: true,
+      },
+    });
+    if (!business || business.status !== 'active') {
+      throw new NotFoundException('Business not found');
+    }
+    if (business.ownerUserId || business.claimStatus === 'claimed') {
+      throw new BadRequestException('Business is already claimed');
+    }
+
+    const code = this.generateInPersonCode();
+    const hash = this.hashCode(code);
+    const now = new Date();
+
+    await this.prisma.business.update({
+      where: { id: businessId },
+      data: {
+        claimCodeHash: hash,
+        claimCodeIssuedAt: now,
+        claimCodeConsumedAt: null,
+      },
+    });
+
+    return { ok: true as const, code };
   }
 
   async listMyBusinessClaims(userId: string) {

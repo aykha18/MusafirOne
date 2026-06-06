@@ -118,25 +118,7 @@ export default function UmrahScreen() {
   };
 
   const submitClaim = async (businessId: string) => {
-    Alert.alert('Claim this business?', 'We will review your request.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Submit',
-        onPress: async () => {
-          setBusy(true);
-          setError(null);
-          try {
-            await apiClient.createBusinessClaim(businessId, { method: 'docs' });
-            await refresh();
-            Alert.alert('Submitted', 'Your claim is in review.');
-          } catch (e) {
-            setError(e instanceof Error ? e.message : String(e));
-          } finally {
-            setBusy(false);
-          }
-        },
-      },
-    ]);
+    router.push(`/claims/${businessId}`);
   };
 
   const openInquiry = (businessId: string) => {

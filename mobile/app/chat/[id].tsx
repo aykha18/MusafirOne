@@ -40,11 +40,10 @@ export default function ChatScreen() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [myId, setMyId] = useState<string | null>(null);
-  const [keyboardOverlayHeight, setKeyboardOverlayHeight] = useState(0);
-  const [composerHeight, setComposerHeight] = useState(0);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [keyboardOverlap, setKeyboardOverlap] = useState(0);
   const listRef = useRef<FlatList<Message> | null>(null);
   const isAtBottomRef = useRef(true);
-  const forceScrollToBottomRef = useRef(false);
   const pendingFocusScrollRef = useRef(false);
   const windowHeightRef = useRef(Dimensions.get('window').height);
 
@@ -59,7 +58,6 @@ export default function ChatScreen() {
 
   const requestScrollToBottom = useCallback(
     (animated: boolean) => {
-      forceScrollToBottomRef.current = true;
       isAtBottomRef.current = true;
       scrollToBottom(animated);
     },
@@ -85,12 +83,24 @@ export default function ChatScreen() {
       : Colors[colorScheme ?? 'light'].tint;
 
   useEffect(() => {
+    const dimSub = Dimensions.addEventListener('change', ({ window }) => {
+      windowHeightRef.current = window.height;
+    });
+
     const show = Keyboard.addListener('keyboardDidShow', (e) => {
-      const before = windowHeightRef.current;
-      const now = Dimensions.get('window').height;
-      const keyboardHeight = e.endCoordinates?.height ?? 0;
-      const resized = before - now > Math.min(120, keyboardHeight / 2);
-      setKeyboardOverlayHeight(resized ? 0 : keyboardHeight);
+      setKeyboardVisible(true);
+
+      if (Platform.OS === 'android') {
+        const before = windowHeightRef.current;
+        const now = Dimensions.get('window').height;
+        const keyboardHeight = e.endCoordinates?.height ?? 0;
+        const resizeDelta = Math.max(0, before - now);
+        const overlap = Math.max(0, keyboardHeight - resizeDelta);
+        setKeyboardOverlap(overlap);
+      } else {
+        setKeyboardOverlap(0);
+      }
+
       if (pendingFocusScrollRef.current) {
         pendingFocusScrollRef.current = false;
         requestScrollToBottom(true);
@@ -99,12 +109,13 @@ export default function ChatScreen() {
       if (isAtBottomRef.current) scrollToBottom(true);
     });
     const hide = Keyboard.addListener('keyboardDidHide', () => {
-      setKeyboardOverlayHeight(0);
-      windowHeightRef.current = Dimensions.get('window').height;
+      setKeyboardVisible(false);
+      setKeyboardOverlap(0);
     });
     return () => {
       show.remove();
       hide.remove();
+      dimSub.remove();
     };
   }, [scrollToBottom, requestScrollToBottom]);
 
@@ -200,8 +211,6 @@ export default function ChatScreen() {
 
   const contextBackgroundColor = colorScheme === 'dark' ? '#333' : '#f0f0f0';
   const contextBorderColor = colorScheme === 'dark' ? '#444' : '#ccc';
-  const listBottomPadding =
-    composerHeight + 12 + insets.bottom + (Platform.OS === 'android' ? keyboardOverlayHeight : 0);
 
   return (
     <SafeAreaView
@@ -209,19 +218,15 @@ export default function ChatScreen() {
         styles.container,
         { backgroundColor: Colors[colorScheme ?? 'light'].surface },
       ]}
-      edges={['left', 'right']}
+      edges={['left', 'right', 'bottom']}
     >
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}
       >
-        <ThemedView
-          style={[
-            styles.container,
-            { backgroundColor: Colors[colorScheme ?? 'light'].surface },
-          ]}
-        >
+        <ThemedView style={[styles.container, { backgroundColor: Colors[colorScheme ?? 'light'].surface }]}>
+          <View style={[styles.content, { paddingBottom: keyboardOverlap }]}>
           {conversation?.matchRequest?.currencyPost ? (
             <View
               style={[
@@ -256,13 +261,11 @@ export default function ChatScreen() {
             data={messages}
             renderItem={renderItem}
             keyExtractor={(item) => item.id}
-            contentContainerStyle={[styles.listContent, { paddingBottom: listBottomPadding }]}
+            style={styles.list}
+            contentContainerStyle={styles.listContent}
             keyboardShouldPersistTaps="handled"
             onContentSizeChange={() => {
-              if (forceScrollToBottomRef.current || isAtBottomRef.current) {
-                scrollToBottom(false);
-              }
-              forceScrollToBottomRef.current = false;
+              if (isAtBottomRef.current) scrollToBottom(false);
             }}
             scrollEventThrottle={16}
             onScroll={(e) => {
@@ -279,15 +282,10 @@ export default function ChatScreen() {
               styles.composer,
               {
                 borderTopColor: Colors[colorScheme ?? 'light'].border,
-                bottom: Platform.OS === 'android' ? keyboardOverlayHeight : 0,
                 paddingBottom: 10 + insets.bottom,
                 backgroundColor: Colors[colorScheme ?? 'light'].background,
               },
             ]}
-            onLayout={(e) => {
-              const h = e.nativeEvent.layout.height;
-              if (h > 0 && h !== composerHeight) setComposerHeight(h);
-            }}
           >
             <View style={[styles.composerInner, { borderColor: Colors[colorScheme ?? 'light'].border }]}>
               <TextInput
@@ -301,7 +299,11 @@ export default function ChatScreen() {
                 placeholderTextColor={Colors[colorScheme ?? 'light'].tabIconDefault}
                 multiline
                 onFocus={() => {
-                  pendingFocusScrollRef.current = true;
+                  if (keyboardVisible) {
+                    requestScrollToBottom(true);
+                  } else {
+                    pendingFocusScrollRef.current = true;
+                  }
                 }}
               />
               <Pressable
@@ -319,6 +321,7 @@ export default function ChatScreen() {
                 />
               </Pressable>
             </View>
+          </View>
           </View>
         </ThemedView>
       </KeyboardAvoidingView>
@@ -340,6 +343,12 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 12,
   },
+  content: {
+    flex: 1,
+  },
+  list: {
+    flex: 1,
+  },
   messageContainer: {
     maxWidth: '80%',
     padding: 12,
@@ -360,9 +369,6 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
   },
   composer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
     paddingHorizontal: 12,
     paddingTop: 10,
     borderTopWidth: StyleSheet.hairlineWidth,

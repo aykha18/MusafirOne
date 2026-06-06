@@ -11,6 +11,7 @@ import Users from './pages/Users'
 import Disputes from './pages/Disputes'
 import Claims from './pages/Claims'
 import Reports from './pages/Reports'
+import Businesses from './pages/Businesses'
 
 const router = createBrowserRouter([
   {
@@ -28,6 +29,10 @@ const router = createBrowserRouter([
       {
         path: '/logs',
         element: <Logs />,
+      },
+      {
+        path: '/businesses',
+        element: <Businesses />,
       },
       {
         path: '/disputes',

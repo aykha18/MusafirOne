@@ -35,6 +35,7 @@ import { ListDirectoryBusinessesDto } from './dto/list-directory-businesses.dto'
 import { ListAdminClaimsDto } from './dto/list-admin-claims.dto';
 import { ListAdminReportsDto } from './dto/list-admin-reports.dto';
 import { ListExchangesDto } from './dto/list-exchanges.dto';
+import { MergeBusinessesDto } from './dto/merge-businesses.dto';
 import { UpdateBranchDto } from './dto/update-branch.dto';
 import { UpdateBusinessDto } from './dto/update-business.dto';
 import { UpdateOfferDto } from './dto/update-offer.dto';
@@ -164,6 +165,19 @@ export class AdminBusinessesController {
   @Patch(':id/verify')
   verify(@Param('id') id: string, @Body() dto: VerifyBusinessDto) {
     return this.exchangesService.adminVerifyBusiness(id, dto.isVerified);
+  }
+
+  @Post(':id/merge')
+  merge(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') targetBusinessId: string,
+    @Body() dto: MergeBusinessesDto,
+  ) {
+    return this.exchangesService.adminMergeBusinesses(
+      req.user.id,
+      targetBusinessId,
+      dto.sourceBusinessId,
+    );
   }
 
   @Post(':id/claim-code')

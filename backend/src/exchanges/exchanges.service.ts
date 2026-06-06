@@ -1377,6 +1377,144 @@ export class ExchangesService {
     return { ok: true as const, report: updated };
   }
 
+  async adminMergeBusinesses(
+    adminUserId: string,
+    targetBusinessId: string,
+    sourceBusinessId: string,
+  ) {
+    if (targetBusinessId === sourceBusinessId) {
+      throw new BadRequestException('sourceBusinessId must be different');
+    }
+
+    const [target, source] = await Promise.all([
+      this.prisma.business.findUnique({
+        where: { id: targetBusinessId },
+        select: {
+          id: true,
+          type: true,
+          status: true,
+          ownerUserId: true,
+          claimStatus: true,
+        },
+      }),
+      this.prisma.business.findUnique({
+        where: { id: sourceBusinessId },
+        select: {
+          id: true,
+          type: true,
+          status: true,
+          ownerUserId: true,
+          claimStatus: true,
+        },
+      }),
+    ]);
+
+    if (!target || !source) {
+      throw new NotFoundException('Business not found');
+    }
+    if (target.status !== 'active' || source.status !== 'active') {
+      throw new BadRequestException('Both businesses must be active to merge');
+    }
+    if (target.type !== source.type) {
+      throw new BadRequestException('Businesses must have the same type to merge');
+    }
+    if (source.ownerUserId || source.claimStatus === 'claimed') {
+      throw new BadRequestException('Source business cannot be owned/claimed');
+    }
+
+    const targetFavoriteUsers = await this.prisma.exchangeFavorite.findMany({
+      where: { businessId: targetBusinessId },
+      select: { userId: true },
+    });
+    const targetFavSet = new Set(targetFavoriteUsers.map((f) => f.userId));
+    const sourceFavoriteUsers = await this.prisma.exchangeFavorite.findMany({
+      where: { businessId: sourceBusinessId },
+      select: { userId: true },
+    });
+    const duplicateFavoriteUserIds = sourceFavoriteUsers
+      .map((f) => f.userId)
+      .filter((id) => targetFavSet.has(id));
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const deleteDupFavs = duplicateFavoriteUserIds.length
+        ? await tx.exchangeFavorite.deleteMany({
+            where: { businessId: sourceBusinessId, userId: { in: duplicateFavoriteUserIds } },
+          })
+        : { count: 0 };
+
+      const movedFavorites = await tx.exchangeFavorite.updateMany({
+        where: { businessId: sourceBusinessId },
+        data: { businessId: targetBusinessId },
+      });
+
+      const movedBranches = await tx.businessBranch.updateMany({
+        where: { businessId: sourceBusinessId },
+        data: { businessId: targetBusinessId },
+      });
+
+      const movedReviews = await tx.businessReview.updateMany({
+        where: { businessId: sourceBusinessId },
+        data: { businessId: targetBusinessId },
+      });
+
+      const movedClaims = await tx.businessClaim.updateMany({
+        where: { businessId: sourceBusinessId },
+        data: { businessId: targetBusinessId },
+      });
+
+      const movedReports = await tx.businessReport.updateMany({
+        where: { businessId: sourceBusinessId },
+        data: { businessId: targetBusinessId },
+      });
+
+      const movedUmrahLeads = await tx.umrahLead.updateMany({
+        where: { businessId: sourceBusinessId },
+        data: { businessId: targetBusinessId },
+      });
+
+      await tx.business.update({
+        where: { id: sourceBusinessId },
+        data: {
+          status: 'rejected',
+          claimStatus: 'claim_rejected',
+        },
+      });
+
+      await tx.stateChangeLog.create({
+        data: {
+          entityType: 'Business',
+          entityId: targetBusinessId,
+          fromState: null,
+          toState: 'merged',
+          changedByUserId: adminUserId,
+          reason: null,
+          metadata: {
+            sourceBusinessId,
+            deletedDuplicateFavorites: deleteDupFavs.count,
+            movedFavorites: movedFavorites.count,
+            movedBranches: movedBranches.count,
+            movedReviews: movedReviews.count,
+            movedClaims: movedClaims.count,
+            movedReports: movedReports.count,
+            movedUmrahLeads: movedUmrahLeads.count,
+          },
+        } as any,
+      });
+
+      return {
+        deletedDuplicateFavorites: deleteDupFavs.count,
+        movedFavorites: movedFavorites.count,
+        movedBranches: movedBranches.count,
+        movedReviews: movedReviews.count,
+        movedClaims: movedClaims.count,
+        movedReports: movedReports.count,
+        movedUmrahLeads: movedUmrahLeads.count,
+      };
+    });
+
+    return { ok: true as const, targetBusinessId, sourceBusinessId, ...result };
+  }
+
   async createUmrahLead(userId: string, dto: CreateUmrahLeadDto) {
     const businessId = dto.businessId.trim();
     const business = await this.prisma.business.findUnique({

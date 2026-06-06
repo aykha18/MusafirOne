@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { BusinessClaimRequestStatus, BusinessStatus, BusinessType } from '@prisma/client';
+import { AuthService } from '../auth/auth.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateBranchDto } from './dto/create-branch.dto';
 import { CreateBusinessClaimDto } from './dto/create-business-claim.dto';
@@ -59,7 +60,10 @@ type DirectoryBusinessListItem = {
 
 @Injectable()
 export class ExchangesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly authService: AuthService,
+  ) {}
 
   private getReviewCooldownDays() {
     const raw = Number(process.env.REVIEW_COOLDOWN_DAYS ?? 30);
@@ -728,6 +732,8 @@ export class ExchangesService {
         status: true,
         ownerUserId: true,
         claimStatus: true,
+        phone: true,
+        whatsapp: true,
       },
     });
     if (!business || business.status !== 'active') {
@@ -763,12 +769,23 @@ export class ExchangesService {
       throw new BadRequestException('A claim is already pending for this business');
     }
 
+    let phoneToVerify = dto.phoneToVerify?.trim() ? dto.phoneToVerify.trim() : null;
+    if (dto.method === 'phone_otp' && !phoneToVerify) {
+      phoneToVerify = business.phone?.trim() ? business.phone.trim() : null;
+      if (!phoneToVerify) {
+        phoneToVerify = business.whatsapp?.trim() ? business.whatsapp.trim() : null;
+      }
+    }
+    if (dto.method === 'phone_otp' && !phoneToVerify) {
+      throw new BadRequestException('No phone number available for OTP verification');
+    }
+
     const created = await this.prisma.businessClaim.create({
       data: {
         businessId,
         requesterUserId: userId,
         method: dto.method as any,
-        phoneToVerify: dto.phoneToVerify?.trim() ? dto.phoneToVerify.trim() : null,
+        phoneToVerify,
         docsJson: dto.docsJson?.trim() ? dto.docsJson.trim() : null,
         status: 'pending',
       },
@@ -782,7 +799,54 @@ export class ExchangesService {
       data: { claimStatus: 'claim_requested' },
     });
 
+    if (dto.method === 'phone_otp' && phoneToVerify) {
+      await this.authService.requestOtp({ phoneNumber: phoneToVerify });
+    }
+
     return created;
+  }
+
+  async verifyBusinessClaimOtp(userId: string, businessId: string, code: string) {
+    const claim = await this.prisma.businessClaim.findFirst({
+      where: {
+        businessId,
+        requesterUserId: userId,
+        status: 'pending',
+        method: 'phone_otp',
+      },
+      include: { business: true },
+      orderBy: [{ createdAt: 'desc' }],
+    });
+    if (!claim) throw new NotFoundException('Claim not found');
+    const phone = claim.phoneToVerify?.trim() ? claim.phoneToVerify.trim() : null;
+    if (!phone) throw new BadRequestException('No phone to verify');
+
+    await this.authService.consumeOtpOrThrow(phone, code);
+
+    const now = new Date();
+    await this.prisma.$transaction([
+      this.prisma.businessClaim.update({
+        where: { id: claim.id },
+        data: {
+          status: 'approved',
+          reviewedAt: now,
+          reviewedByAdminId: null,
+          rejectionReason: null,
+        },
+      }),
+      this.prisma.business.update({
+        where: { id: claim.businessId },
+        data: {
+          ownerUserId: claim.requesterUserId,
+          claimStatus: 'claimed',
+          claimedAt: now,
+          claimedByUserId: claim.requesterUserId,
+          status: claim.business.status === 'pending' ? 'active' : claim.business.status,
+        },
+      }),
+    ]);
+
+    return { ok: true as const, approved: true as const };
   }
 
   async listMyBusinessClaims(userId: string) {

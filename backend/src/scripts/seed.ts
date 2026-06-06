@@ -114,6 +114,207 @@ function getPrisma(): PrismaClient {
   return new PrismaClient({ adapter });
 }
 
+function parseCsvRow(line: string): string[] {
+  const out: string[] = [];
+  let cur = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        const next = line[i + 1];
+        if (next === '"') {
+          cur += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        cur += ch;
+      }
+      continue;
+    }
+    if (ch === '"') {
+      inQuotes = true;
+      continue;
+    }
+    if (ch === ',') {
+      out.push(cur);
+      cur = '';
+      continue;
+    }
+    cur += ch;
+  }
+  out.push(cur);
+  return out.map((v) => v.trim());
+}
+
+function parseOptionalNumber(raw: string | undefined) {
+  if (!raw) return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
+async function importDirectoryFromCsv(prisma: PrismaClient) {
+  const csvPath = process.env.DIRECTORY_IMPORT_CSV_PATH?.trim();
+  if (!csvPath) {
+    throw new Error('DIRECTORY_IMPORT_CSV_PATH is required');
+  }
+  const rawType = process.env.DIRECTORY_IMPORT_TYPE?.trim().toLowerCase();
+  const defaultType =
+    rawType === 'exchange' || rawType === 'umrah' ? rawType : null;
+  const defaultCity = process.env.DIRECTORY_IMPORT_CITY?.trim() || null;
+
+  const sourceName = process.env.DIRECTORY_IMPORT_SOURCE_NAME?.trim() || 'manual_csv';
+  const sourceUrl = process.env.DIRECTORY_IMPORT_SOURCE_URL?.trim() || null;
+  const batchId =
+    process.env.DIRECTORY_IMPORT_BATCH_ID?.trim() || `manual_${Date.now()}`;
+  const now = new Date();
+
+  const file = fs.readFileSync(csvPath, 'utf-8');
+  const lines = file
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+  if (lines.length < 2) {
+    throw new Error('CSV must have a header row and at least 1 data row');
+  }
+
+  const header = parseCsvRow(lines[0]).map((h) => h.toLowerCase());
+  const getVal = (row: string[], key: string) => {
+    const idx = header.indexOf(key.toLowerCase());
+    if (idx === -1) return undefined;
+    return row[idx];
+  };
+
+  let created = 0;
+  let updated = 0;
+  let skipped = 0;
+
+  for (let i = 1; i < lines.length; i++) {
+    const row = parseCsvRow(lines[i]);
+    const name = (getVal(row, 'name') ?? '').trim();
+    const typeRaw = (getVal(row, 'type') ?? defaultType ?? '').trim().toLowerCase();
+    const type = typeRaw === 'exchange' || typeRaw === 'umrah' ? typeRaw : null;
+    const city = (getVal(row, 'city') ?? defaultCity ?? '').trim();
+    const address = (getVal(row, 'address') ?? '').trim();
+
+    if (!name || !type || !city || !address) {
+      skipped++;
+      continue;
+    }
+
+    const phone = (getVal(row, 'phone') ?? '').trim() || null;
+    const whatsapp = (getVal(row, 'whatsapp') ?? '').trim() || null;
+    const website = (getVal(row, 'website') ?? '').trim() || null;
+    const lat = parseOptionalNumber(getVal(row, 'lat'));
+    const lng = parseOptionalNumber(getVal(row, 'lng'));
+
+    const existing = await prisma.business.findFirst({
+      where: {
+        type: type as any,
+        name: { equals: name, mode: 'insensitive' },
+        branches: {
+          some: {
+            isActive: true,
+            city: { equals: city, mode: 'insensitive' },
+          },
+        },
+      },
+      include: {
+        branches: {
+          where: { isActive: true },
+          orderBy: [{ createdAt: 'asc' }],
+          take: 20,
+        },
+      },
+    });
+
+    if (!existing) {
+      await prisma.business.create({
+        data: {
+          ownerUserId: null,
+          type: type as any,
+          name,
+          phone,
+          whatsapp,
+          website,
+          status: 'active',
+          isVerified: false,
+          claimStatus: 'unclaimed',
+          sourceType: 'manual',
+          sourceName,
+          sourceUrl,
+          importBatchId: batchId,
+          importedAt: now,
+          lastSeenAt: now,
+          branches: {
+            create: {
+              city,
+              address,
+              lat,
+              lng,
+              isActive: true,
+            },
+          },
+        },
+      });
+      created++;
+      continue;
+    }
+
+    if (existing.ownerUserId) {
+      skipped++;
+      continue;
+    }
+
+    await prisma.business.update({
+      where: { id: existing.id },
+      data: {
+        phone: phone ?? undefined,
+        whatsapp: whatsapp ?? undefined,
+        website: website ?? undefined,
+        sourceType: 'manual',
+        sourceName,
+        sourceUrl,
+        importBatchId: batchId,
+        lastSeenAt: now,
+      },
+    });
+
+    const branchForCity =
+      existing.branches.find(
+        (b) => b.city.trim().toLowerCase() === city.trim().toLowerCase(),
+      ) ?? null;
+    if (branchForCity) {
+      await prisma.businessBranch.update({
+        where: { id: branchForCity.id },
+        data: {
+          address,
+          lat,
+          lng,
+        },
+      });
+    } else {
+      await prisma.businessBranch.create({
+        data: {
+          businessId: existing.id,
+          city,
+          address,
+          lat,
+          lng,
+          isActive: true,
+        },
+      });
+    }
+    updated++;
+  }
+
+  process.stdout.write(
+    `Directory import complete: created=${created} updated=${updated} skipped=${skipped} batchId=${batchId}\n`,
+  );
+}
+
 async function seedFeatureIdeas(prisma: PrismaClient) {
   for (const f of featureIdeas) {
     await prisma.featureIdea.upsert({
@@ -321,6 +522,13 @@ async function seedExchangeAggregator(prisma: PrismaClient) {
 
 async function main() {
   const prisma = getPrisma();
+
+  if (process.env.SEED_DIRECTORY_FROM_CSV === '1') {
+    await importDirectoryFromCsv(prisma);
+    await prisma.$disconnect();
+    process.stdout.write('Seed complete\n');
+    return;
+  }
 
   if (process.env.SEED_EXCHANGES_ONLY === '1') {
     await seedExchangeAggregator(prisma);

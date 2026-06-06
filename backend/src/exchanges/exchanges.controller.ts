@@ -29,6 +29,7 @@ import { UpdateBusinessDto } from './dto/update-business.dto';
 import { UpdateOfferDto } from './dto/update-offer.dto';
 import { SetReviewHiddenDto } from './dto/set-review-hidden.dto';
 import { VerifyBusinessDto } from './dto/verify-business.dto';
+import { VerifyBusinessClaimOtpDto } from './dto/verify-business-claim-otp.dto';
 import { ExchangesService } from './exchanges.service';
 
 type AuthenticatedRequest = {
@@ -151,6 +152,15 @@ export class BusinessesController {
     @Body() dto: CreateBusinessClaimDto,
   ) {
     return this.exchangesService.createBusinessClaim(req.user.id, businessId, dto);
+  }
+
+  @Post('businesses/:id/claim/verify-otp')
+  verifyClaimOtp(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') businessId: string,
+    @Body() dto: VerifyBusinessClaimOtpDto,
+  ) {
+    return this.exchangesService.verifyBusinessClaimOtp(req.user.id, businessId, dto.code);
   }
 
   @Patch('businesses/:id')

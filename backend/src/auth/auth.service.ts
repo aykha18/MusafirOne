@@ -72,6 +72,40 @@ export class AuthService {
     this.logger.log(`[SMS GATEWAY] Sending OTP to ${phoneNumber}: ${code}`);
   }
 
+  async consumeOtpOrThrow(phoneNumber: string, code: string) {
+    const otpRecord = await this.prisma.otpRequest.findFirst({
+      where: {
+        phoneNumber,
+        consumedAt: null,
+        expiresAt: {
+          gt: new Date(),
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+    if (!otpRecord) {
+      throw new UnauthorizedException('Invalid code');
+    }
+    const hash = this.hashCode(code);
+    if (otpRecord.codeHash !== hash) {
+      await this.prisma.otpRequest.update({
+        where: { id: otpRecord.id },
+        data: {
+          attempts: otpRecord.attempts + 1,
+        },
+      });
+      throw new UnauthorizedException('Invalid code');
+    }
+    await this.prisma.otpRequest.update({
+      where: { id: otpRecord.id },
+      data: {
+        consumedAt: new Date(),
+      },
+    });
+  }
+
   async verifyGoogleToken(dto: GoogleLoginDto): Promise<AuthTokens> {
     try {
       const audiences = this.getGoogleAudiences();
@@ -152,37 +186,7 @@ export class AuthService {
   }
 
   async verifyOtp(dto: VerifyOtpDto): Promise<AuthTokens> {
-    const otpRecord = await this.prisma.otpRequest.findFirst({
-      where: {
-        phoneNumber: dto.phoneNumber,
-        consumedAt: null,
-        expiresAt: {
-          gt: new Date(),
-        },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
-    if (!otpRecord) {
-      throw new UnauthorizedException('Invalid code');
-    }
-    const hash = this.hashCode(dto.code);
-    if (otpRecord.codeHash !== hash) {
-      await this.prisma.otpRequest.update({
-        where: { id: otpRecord.id },
-        data: {
-          attempts: otpRecord.attempts + 1,
-        },
-      });
-      throw new UnauthorizedException('Invalid code');
-    }
-    await this.prisma.otpRequest.update({
-      where: { id: otpRecord.id },
-      data: {
-        consumedAt: new Date(),
-      },
-    });
+    await this.consumeOtpOrThrow(dto.phoneNumber, dto.code);
     const existingUser = await this.prisma.user.findUnique({
       where: {
         phoneNumber: dto.phoneNumber,

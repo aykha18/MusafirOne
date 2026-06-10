@@ -28,6 +28,19 @@ MusafirOne is a mobile-first platform designed to help expatriates:
 *   **Edit Trips/Requests**: Update active trips and requests.
 *   **Disputes & Ratings**: Raise disputes and submit ratings.
 
+### 🧾 Business Directory (Exchanges + Umrah)
+*   **City-based directory**: Browse businesses seeded into the directory by type (`exchange` / `umrah`) and city.
+*   **Trust badges**: Listings show `Verified` vs `Unclaimed`/`Claim requested`/`Claimed`.
+*   **Umrah inquiries**: Users can submit inquiries to Umrah agencies; owners view them in their Business Dashboard inbox.
+
+### 🏷️ Business Claiming / Onboarding
+*   **Claim methods**:
+    *   **Phone OTP**: Send OTP to business phone/WhatsApp and auto-approve on successful verification.
+    *   **Docs**: Upload trade/agency license for manual admin review (approve/reject).
+    *   **In-person code**: Door-to-door claim code generation + verification (auto-approve on successful code).
+*   **Anti-abuse**: Max pending claims per user + cooldown after rejection.
+*   **My Claims**: Users can view claim history and statuses.
+
 ### 💬 Real-time Chat
 *   **Integrated Chat**: Secure, real-time messaging for matched users.
 *   **Context Aware**: Chat screens show transaction details (Currency amount or Parcel weight) at the top.
@@ -52,6 +65,11 @@ MusafirOne is a mobile-first platform designed to help expatriates:
 *   **Moderation**: Suspend/Unsuspend users, Verify/Unverify users manually.
 *   **Disputes**: Review and resolve disputes.
 *   **Verification Docs**: Review Level 2 verification submissions.
+*   **Directory ops**:
+    *   **Claims queue**: Approve/reject business claims; download docs claim uploads.
+    *   **Reports queue**: Review user-submitted reports; reject a listing and resolve report.
+    *   **Duplicate merge**: Merge duplicate businesses (move branches/claims/reviews/reports/favorites and hide source).
+    *   **Door-to-door codes**: Generate in-person claim codes for a business.
 
 ## Tech Stack
 
@@ -68,7 +86,7 @@ MusafirOne is a mobile-first platform designed to help expatriates:
 *   **Database**: PostgreSQL
 *   **ORM**: Prisma
 *   **Real-time**: Socket.io (Gateway)
-*   **Authentication**: JWT & OTP-based (Simulated for MVP)
+*   **Authentication**: JWT & OTP-based (Simulated SMS gateway for MVP; used for login + claims)
 
 ## Project Structure
 
@@ -80,6 +98,7 @@ muhajirOne/
 │   │   ├── auth/     # Authentication & Guards
 │   │   ├── chat/     # Chat Gateway & Service
 │   │   ├── currency/ # Currency Exchange Module
+│   │   ├── exchanges/ # Exchange aggregator + directory + claims + Umrah leads
 │   │   ├── parcel/   # Parcel Delivery Module
 │   │   ├── verification/ # Level 2 document verification
 │   │   ├── features/ # Explore feature voting APIs
@@ -118,6 +137,10 @@ npx prisma migrate dev
 
 # Seed sample data (optional)
 npm run seed
+
+# Directory import from CSV (optional)
+# (see backend/src/scripts/seed.ts)
+SEED_DIRECTORY_FROM_CSV=1 DIRECTORY_IMPORT_CSV_PATH="C:\\path\\directory.csv" npm run seed
 
 # Start the server
 npm run start:dev

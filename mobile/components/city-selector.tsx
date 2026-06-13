@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Modal, StyleSheet, TouchableOpacity, FlatList, View } from 'react-native';
 import { ThemedInput } from './themed-input';
 import { ThemedText } from './themed-text';
@@ -25,16 +25,27 @@ type Props = {
 export function CitySelector({ value, onChange, onSelectCity, placeholder }: Props) {
   const [modalVisible, setModalVisible] = useState(false);
   const [search, setSearch] = useState('');
-  
+
   const backgroundColor = useThemeColor({}, 'background');
   const borderColor = useThemeColor({}, 'icon');
   const textColor = useThemeColor({}, 'text');
 
-  const filteredCities = citiesData.filter((city) =>
-    city.name.toLowerCase().includes(search.toLowerCase()) ||
-    city.code.toLowerCase().includes(search.toLowerCase()) ||
-    city.country.toLowerCase().includes(search.toLowerCase()) ||
-    (city.currency && city.currency.toLowerCase().includes(search.toLowerCase()))
+  const normalizedSearch = search.trim().toLowerCase();
+  const filteredCities = useMemo(
+    () =>
+      citiesData.filter((city) =>
+        !normalizedSearch ||
+        city.name.toLowerCase().includes(normalizedSearch) ||
+        city.code.toLowerCase().includes(normalizedSearch) ||
+        city.country.toLowerCase().includes(normalizedSearch) ||
+        (city.currency && city.currency.toLowerCase().includes(normalizedSearch)),
+      ),
+    [normalizedSearch],
+  );
+
+  const showManualSelection = !!normalizedSearch;
+  const hasExactAirportCityMatch = filteredCities.some(
+    (city) => city.name.trim().toLowerCase() === normalizedSearch,
   );
 
   const handleSelect = (city: City) => {
@@ -46,8 +57,18 @@ export function CitySelector({ value, onChange, onSelectCity, placeholder }: Pro
     setSearch('');
   };
 
+  const handleManualSelect = () => {
+    const manualCity = search.trim();
+    if (!manualCity) {
+      return;
+    }
+    onChange(manualCity);
+    setModalVisible(false);
+    setSearch('');
+  };
+
   const handleOpen = () => {
-    console.log('CitySelector: handleOpen called');
+    setSearch(value.trim());
     setModalVisible(true);
   };
 
@@ -78,10 +99,29 @@ export function CitySelector({ value, onChange, onSelectCity, placeholder }: Pro
             <ThemedInput
               value={search}
               onChangeText={setSearch}
-              placeholder="Search city, country or code"
+              placeholder="Search or enter city"
               autoFocus
             />
           </View>
+
+          {showManualSelection ? (
+            <TouchableOpacity
+              style={[styles.manualItem, { borderColor, backgroundColor }]}
+              onPress={handleManualSelect}
+            >
+              <View style={{ flex: 1 }}>
+                <ThemedText type="defaultSemiBold">
+                  Use "{search.trim()}"
+                </ThemedText>
+                <ThemedText style={[styles.country, { color: borderColor }]}>
+                  Search with a custom city not present in the airport list
+                </ThemedText>
+              </View>
+              {!hasExactAirportCityMatch ? (
+                <Ionicons name="create-outline" size={20} color={textColor} />
+              ) : null}
+            </TouchableOpacity>
+          ) : null}
 
           <FlatList
             data={filteredCities}
@@ -126,6 +166,16 @@ const styles = StyleSheet.create({
   },
   searchContainer: {
     padding: 16,
+  },
+  manualItem: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+    padding: 16,
+    borderWidth: 1,
+    borderRadius: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
   item: {
     flexDirection: 'row',

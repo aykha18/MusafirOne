@@ -1286,7 +1286,7 @@ const styles = StyleSheet.create({
 
 function AggregatorCurrencyScreen() {
   const colorScheme = useColorScheme();
-  const [city, setCity] = useState('Dubai');
+  const [city, setCity] = useState('');
   const [fromCurrency, setFromCurrency] = useState('SAR');
   const [toCurrency, setToCurrency] = useState('INR');
   const [amount, setAmount] = useState('1000');
@@ -1302,8 +1302,9 @@ function AggregatorCurrencyScreen() {
     setBusy(true);
     setError(null);
     try {
+      const chosenCity = city.trim();
       const res = await apiClient.listExchanges({
-        city: city.trim(),
+        city: chosenCity || undefined,
         fromCurrency: fromCurrency.trim().toUpperCase(),
         toCurrency: toCurrency.trim().toUpperCase(),
         amount: amount.trim(),
@@ -1327,11 +1328,16 @@ function AggregatorCurrencyScreen() {
   }, [load]);
 
   const openExchange = (id: string) => {
-    const qs =
-      `fromCurrency=${encodeURIComponent(fromCurrency.trim().toUpperCase())}` +
-      `&toCurrency=${encodeURIComponent(toCurrency.trim().toUpperCase())}` +
-      `&amount=${encodeURIComponent(amount.trim())}` +
-      `&city=${encodeURIComponent(city.trim())}`;
+    const queryParts = [
+      `fromCurrency=${encodeURIComponent(fromCurrency.trim().toUpperCase())}`,
+      `toCurrency=${encodeURIComponent(toCurrency.trim().toUpperCase())}`,
+      `amount=${encodeURIComponent(amount.trim())}`,
+    ];
+    const chosenCity = city.trim();
+    if (chosenCity) {
+      queryParts.push(`city=${encodeURIComponent(chosenCity)}`);
+    }
+    const qs = queryParts.join('&');
     router.push(`/exchanges/${id}?${qs}`);
   };
 
@@ -1348,6 +1354,17 @@ function AggregatorCurrencyScreen() {
 
         <AppCard style={{ padding: 14, gap: 10 }}>
           <CitySelector placeholder="City" value={city} onChange={setCity} />
+          {city ? (
+            <Pressable onPress={() => setCity('')}>
+              <ThemedText style={{ color: Colors[colorScheme ?? 'light'].tint }}>
+                Show all cities
+              </ThemedText>
+            </Pressable>
+          ) : (
+            <ThemedText style={{ opacity: 0.65 }}>
+              Showing exchanges from all cities
+            </ThemedText>
+          )}
           <CurrencySelector
             placeholder="From currency"
             value={fromCurrency}

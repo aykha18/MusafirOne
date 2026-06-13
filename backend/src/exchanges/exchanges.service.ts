@@ -15,6 +15,7 @@ import { AuthService } from '../auth/auth.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateBranchDto } from './dto/create-branch.dto';
 import { CreateBusinessClaimDto } from './dto/create-business-claim.dto';
+import { CreateBusinessOutreachDto } from './dto/create-business-outreach.dto';
 import { CreateBusinessDto } from './dto/create-business.dto';
 import { CreateBusinessReportDto } from './dto/create-business-report.dto';
 import { CreateBusinessReviewDto } from './dto/create-business-review.dto';
@@ -63,6 +64,19 @@ type DirectoryBusinessListItem = {
   lat: number | null;
   lng: number | null;
   openNow: boolean | null;
+};
+
+type BusinessOutreachSummary = {
+  channel: string;
+  outcome: string;
+  note: string | null;
+  nextFollowUpAt: string | null;
+  createdAt: Date;
+  changedByUser: {
+    id: string;
+    fullName: string;
+    phoneNumber: string;
+  } | null;
 };
 
 @Injectable()
@@ -215,6 +229,75 @@ export class ExchangesService {
     }
 
     return reasons;
+  }
+
+  private parseBusinessOutreachMetadata(metadata: unknown) {
+    const channel = String((metadata as any)?.channel ?? '');
+    const outcome = String((metadata as any)?.outcome ?? '');
+    if (!channel || !outcome) return null;
+    return {
+      channel,
+      outcome,
+      note: (metadata as any)?.note ? String((metadata as any).note) : null,
+      nextFollowUpAt: (metadata as any)?.nextFollowUpAt
+        ? String((metadata as any).nextFollowUpAt)
+        : null,
+    };
+  }
+
+  private async getBusinessOutreachSummaryMap(businessIds: string[]) {
+    if (businessIds.length === 0) {
+      return new Map<string, { outreachCount: number; latestOutreach: BusinessOutreachSummary | null }>();
+    }
+
+    const outreachLogs = await this.prisma.stateChangeLog.findMany({
+      where: {
+        entityType: 'BusinessOutreach',
+        entityId: { in: businessIds },
+      },
+      orderBy: [{ createdAt: 'desc' }],
+      include: {
+        changedByUser: {
+          select: {
+            id: true,
+            fullName: true,
+            phoneNumber: true,
+          },
+        },
+      },
+    });
+
+    const byBusiness = new Map<string, { outreachCount: number; latestOutreach: BusinessOutreachSummary | null }>();
+
+    for (const log of outreachLogs) {
+      const existing = byBusiness.get(log.entityId) ?? {
+        outreachCount: 0,
+        latestOutreach: null,
+      };
+      existing.outreachCount += 1;
+      if (!existing.latestOutreach) {
+        const parsed = this.parseBusinessOutreachMetadata(log.metadata);
+        if (parsed) {
+          existing.latestOutreach = {
+            channel: parsed.channel,
+            outcome: parsed.outcome,
+            note: parsed.note,
+            nextFollowUpAt: parsed.nextFollowUpAt,
+            createdAt: log.createdAt,
+            changedByUser: log.changedByUser
+              ? {
+                  id: log.changedByUser.id,
+                  fullName: log.changedByUser.fullName,
+                  phoneNumber: log.changedByUser.phoneNumber,
+                }
+              : null,
+          };
+        }
+      }
+      byBusiness.set(log.entityId, existing);
+    }
+
+    return byBusiness;
   }
 
   private haversineDistanceKm(
@@ -2148,7 +2231,15 @@ export class ExchangesService {
       },
     });
 
+    const outreachByBusiness = await this.getBusinessOutreachSummaryMap(
+      businesses.map((business) => business.id),
+    );
+
     return businesses.map((business) => {
+      const outreach = outreachByBusiness.get(business.id) ?? {
+        outreachCount: 0,
+        latestOutreach: null,
+      };
       const possibleDuplicates =
         business.status !== 'pending'
           ? []
@@ -2185,9 +2276,90 @@ export class ExchangesService {
 
       return {
         ...business,
+        outreachCount: outreach.outreachCount,
+        latestOutreach: outreach.latestOutreach,
         possibleDuplicates,
       };
     });
+  }
+
+  async adminLogBusinessOutreach(
+    adminUserId: string,
+    businessId: string,
+    dto: CreateBusinessOutreachDto,
+  ) {
+    const business = await this.prisma.business.findUnique({
+      where: { id: businessId },
+      select: {
+        id: true,
+        name: true,
+        ownerUserId: true,
+        claimStatus: true,
+      },
+    });
+    if (!business) throw new NotFoundException('Business not found');
+    if (business.ownerUserId || business.claimStatus === 'claimed') {
+      throw new BadRequestException('Outreach tracking is only supported for unclaimed businesses');
+    }
+
+    const trimmedNote = dto.note?.trim() ? dto.note.trim() : null;
+    let nextFollowUpAt: Date | null = null;
+    if (dto.nextFollowUpAt?.trim()) {
+      const parsed = new Date(dto.nextFollowUpAt.trim());
+      if (Number.isNaN(parsed.getTime())) {
+        throw new BadRequestException('nextFollowUpAt must be a valid datetime');
+      }
+      nextFollowUpAt = parsed;
+    }
+
+    const latestLog = await this.prisma.stateChangeLog.findFirst({
+      where: {
+        entityType: 'BusinessOutreach',
+        entityId: businessId,
+      },
+      orderBy: [{ createdAt: 'desc' }],
+    });
+
+    const created = await this.prisma.stateChangeLog.create({
+      data: {
+        entityType: 'BusinessOutreach',
+        entityId: businessId,
+        fromState: latestLog?.toState ?? null,
+        toState: dto.outcome,
+        changedByUserId: adminUserId,
+        reason: trimmedNote,
+        metadata: {
+          channel: dto.channel,
+          outcome: dto.outcome,
+          note: trimmedNote,
+          nextFollowUpAt: nextFollowUpAt ? nextFollowUpAt.toISOString() : null,
+          businessName: business.name,
+        },
+      },
+      include: {
+        changedByUser: {
+          select: {
+            id: true,
+            fullName: true,
+            phoneNumber: true,
+          },
+        },
+      },
+    });
+
+    return {
+      ok: true as const,
+      outreach: {
+        id: created.id,
+        businessId,
+        channel: dto.channel,
+        outcome: dto.outcome,
+        note: trimmedNote,
+        nextFollowUpAt: nextFollowUpAt ? nextFollowUpAt.toISOString() : null,
+        createdAt: created.createdAt,
+        changedByUser: created.changedByUser,
+      },
+    };
   }
 
   async adminSetBusinessStatus(id: string, status: 'active' | 'rejected') {

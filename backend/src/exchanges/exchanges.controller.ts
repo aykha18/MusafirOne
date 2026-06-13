@@ -23,6 +23,7 @@ import { diskStorage } from 'multer';
 import { AdminGuard } from '../auth/admin.guard';
 import { CreateBranchDto } from './dto/create-branch.dto';
 import { CreateBusinessClaimDto } from './dto/create-business-claim.dto';
+import { CreateBusinessOutreachDto } from './dto/create-business-outreach.dto';
 import { CreateBusinessDto } from './dto/create-business.dto';
 import { CreateBusinessReportDto } from './dto/create-business-report.dto';
 import { CreateBusinessReviewDto } from './dto/create-business-review.dto';
@@ -188,6 +189,15 @@ export class AdminBusinessesController {
   @Post(':id/claim-code')
   generateClaimCode(@Param('id') id: string) {
     return this.exchangesService.adminGenerateBusinessClaimCode(id);
+  }
+
+  @Post(':id/outreach')
+  logOutreach(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() dto: CreateBusinessOutreachDto,
+  ) {
+    return this.exchangesService.adminLogBusinessOutreach(req.user.id, id, dto);
   }
 }
 

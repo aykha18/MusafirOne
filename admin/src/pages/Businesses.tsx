@@ -1,5 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { businessesService, type AdminBusiness } from '../services/businesses.service';
+import {
+  businessesService,
+  type AdminBusiness,
+  type BusinessOutreachChannel,
+  type BusinessOutreachOutcome,
+} from '../services/businesses.service';
+import { logsService, type Log } from '../services/logs.service';
 
 const Businesses: React.FC = () => {
   const [items, setItems] = useState<AdminBusiness[]>([]);
@@ -9,6 +15,7 @@ const Businesses: React.FC = () => {
   const [status, setStatus] = useState<'active' | 'pending' | 'rejected' | 'all'>('pending');
   const [type, setType] = useState<'exchange' | 'umrah' | 'all'>('all');
   const [sourceType, setSourceType] = useState<'manual' | 'api' | 'partner' | 'other' | 'owner' | 'all'>('all');
+  const [followUpFilter, setFollowUpFilter] = useState<'all' | 'due' | 'upcoming' | 'none'>('all');
   const [batchInput, setBatchInput] = useState('');
   const [importBatchId, setImportBatchId] = useState('');
 
@@ -19,12 +26,43 @@ const Businesses: React.FC = () => {
   const [claimCode, setClaimCode] = useState<string | null>(null);
   const [generatingCode, setGeneratingCode] = useState(false);
   const [actingBusinessId, setActingBusinessId] = useState<string | null>(null);
+  const [outreachBusinessId, setOutreachBusinessId] = useState<string | null>(null);
+  const [outreachFormBusiness, setOutreachFormBusiness] = useState<AdminBusiness | null>(null);
+  const [outreachChannel, setOutreachChannel] = useState<BusinessOutreachChannel>('phone');
+  const [outreachOutcome, setOutreachOutcome] = useState<BusinessOutreachOutcome>('attempted');
+  const [outreachNote, setOutreachNote] = useState('');
+  const [outreachNextFollowUpAt, setOutreachNextFollowUpAt] = useState('');
+  const [historyBusiness, setHistoryBusiness] = useState<AdminBusiness | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [historyLogs, setHistoryLogs] = useState<Log[]>([]);
 
   const filtered = useMemo(() => {
     return items.filter((b) => {
+      if (followUpFilter === 'all') return true;
+      const nextFollowUp = b.latestOutreach?.nextFollowUpAt
+        ? new Date(b.latestOutreach.nextFollowUpAt)
+        : null;
+      const hasValidNextFollowUp =
+        nextFollowUp && !Number.isNaN(nextFollowUp.getTime()) ? nextFollowUp : null;
+
+      if (followUpFilter === 'none') {
+        return !hasValidNextFollowUp;
+      }
+      if (!hasValidNextFollowUp) {
+        return false;
+      }
+
+      const now = new Date();
+      if (followUpFilter === 'due') {
+        return hasValidNextFollowUp.getTime() <= now.getTime();
+      }
+      if (followUpFilter === 'upcoming') {
+        return hasValidNextFollowUp.getTime() > now.getTime();
+      }
       return true;
     });
-  }, [items]);
+  }, [followUpFilter, items]);
 
   const load = async () => {
     setLoading(true);
@@ -125,6 +163,66 @@ const Businesses: React.FC = () => {
     window.alert(`Merge form prefilled. Target: ${targetId} | Source: ${sourceId}`);
   };
 
+  const canTrackOutreach = (business: AdminBusiness) =>
+    !business.ownerUserId && business.claimStatus !== 'claimed';
+
+  const toDateTimeLocalValue = (value?: string | null) => {
+    if (!value) return '';
+    const dt = new Date(value);
+    if (Number.isNaN(dt.getTime())) return '';
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}T${pad(
+      dt.getHours(),
+    )}:${pad(dt.getMinutes())}`;
+  };
+
+  const openOutreachEditor = (business: AdminBusiness) => {
+    if (!canTrackOutreach(business)) {
+      window.alert('Outreach is only tracked for unclaimed businesses.');
+      return;
+    }
+    setOutreachFormBusiness(business);
+    setOutreachChannel(business.latestOutreach?.channel ?? 'phone');
+    setOutreachOutcome(business.latestOutreach?.outcome ?? 'attempted');
+    setOutreachNote(business.latestOutreach?.note ?? '');
+    setOutreachNextFollowUpAt(toDateTimeLocalValue(business.latestOutreach?.nextFollowUpAt));
+  };
+
+  const startOutreachForm = (business: AdminBusiness) => {
+    openOutreachEditor(business);
+    void loadOutreachHistory(business);
+  };
+
+  const closeOutreachForm = () => {
+    setOutreachFormBusiness(null);
+    setOutreachChannel('phone');
+    setOutreachOutcome('attempted');
+    setOutreachNote('');
+    setOutreachNextFollowUpAt('');
+  };
+
+  const submitOutreach = async () => {
+    if (!outreachFormBusiness) return;
+    setOutreachBusinessId(outreachFormBusiness.id);
+    setError(null);
+    try {
+      await businessesService.logOutreach(outreachFormBusiness.id, {
+        channel: outreachChannel,
+        outcome: outreachOutcome,
+        note: outreachNote.trim() || undefined,
+        nextFollowUpAt: outreachNextFollowUpAt.trim() || undefined,
+      });
+      await load();
+      closeOutreachForm();
+    } catch (e: any) {
+      setError(e?.response?.data?.message ?? e?.message ?? 'Failed to log outreach');
+    } finally {
+      setOutreachBusinessId((current) =>
+        current === outreachFormBusiness.id ? null : current,
+      );
+    }
+  };
+
   const applyBatchFilter = () => {
     setImportBatchId(batchInput.trim());
   };
@@ -132,6 +230,41 @@ const Businesses: React.FC = () => {
   const clearBatchFilter = () => {
     setBatchInput('');
     setImportBatchId('');
+  };
+
+  const loadOutreachHistory = async (business: AdminBusiness) => {
+    if (canTrackOutreach(business)) {
+      openOutreachEditor(business);
+    } else {
+      closeOutreachForm();
+    }
+    setHistoryBusiness(business);
+    setHistoryLoading(true);
+    setHistoryError(null);
+    try {
+      const res = await logsService.listLogs(1, 20, {
+        entityType: 'BusinessOutreach',
+        entityId: business.id,
+      });
+      setHistoryLogs(Array.isArray(res.items) ? res.items : []);
+    } catch (e: any) {
+      setHistoryError(e?.response?.data?.message ?? e?.message ?? 'Failed to load outreach history');
+      setHistoryLogs([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const closeHistory = () => {
+    setHistoryBusiness(null);
+    setHistoryError(null);
+    setHistoryLogs([]);
+    setHistoryLoading(false);
+  };
+
+  const closeOutreachWorkspace = () => {
+    closeOutreachForm();
+    closeHistory();
   };
 
   const formatDate = (value?: string | null) => {
@@ -153,6 +286,63 @@ const Businesses: React.FC = () => {
       detail: business.sourceName ?? business.sourceType,
     };
   };
+
+  const describeOutreachLog = (log: Log) => {
+    const metadata = log.metadata ?? {};
+    return {
+      channel: metadata.channel ? String(metadata.channel) : 'unknown',
+      nextFollowUpAt: metadata.nextFollowUpAt ? String(metadata.nextFollowUpAt) : null,
+      note: metadata.note ? String(metadata.note) : log.reason,
+    };
+  };
+
+  const getOutreachChips = (business: AdminBusiness) => {
+    if (!canTrackOutreach(business)) return [];
+    const chips: Array<{ label: string; className: string }> = [];
+
+    if (!business.latestOutreach) {
+      chips.push({
+        label: 'Never Contacted',
+        className: 'bg-gray-100 text-gray-700',
+      });
+      return chips;
+    }
+
+    chips.push({
+      label: business.latestOutreach.outcome.replace(/_/g, ' '),
+      className:
+        business.latestOutreach.outcome === 'interested'
+          ? 'bg-green-100 text-green-800'
+          : business.latestOutreach.outcome === 'not_interested'
+            ? 'bg-red-100 text-red-800'
+            : business.latestOutreach.outcome === 'claimed'
+              ? 'bg-emerald-100 text-emerald-800'
+              : business.latestOutreach.outcome === 'follow_up'
+                ? 'bg-blue-100 text-blue-800'
+                : 'bg-gray-100 text-gray-700',
+    });
+
+    const nextFollowUp = business.latestOutreach.nextFollowUpAt
+      ? new Date(business.latestOutreach.nextFollowUpAt)
+      : null;
+    if (nextFollowUp && !Number.isNaN(nextFollowUp.getTime())) {
+      const now = Date.now();
+      chips.push(
+        nextFollowUp.getTime() <= now
+          ? { label: 'Follow-up Due', className: 'bg-amber-100 text-amber-800' }
+          : { label: 'Follow-up Upcoming', className: 'bg-sky-100 text-sky-800' },
+      );
+    } else {
+      chips.push({
+        label: 'No Follow-up',
+        className: 'bg-gray-100 text-gray-700',
+      });
+    }
+
+    return chips;
+  };
+
+  const outreachWorkspaceBusiness = outreachFormBusiness ?? historyBusiness;
 
   return (
     <div>
@@ -236,6 +426,158 @@ const Businesses: React.FC = () => {
         ) : null}
       </div>
 
+      {outreachWorkspaceBusiness ? (
+        <div className="bg-white rounded shadow p-4 mb-6">
+          <div className="flex items-start justify-between gap-4 mb-3">
+            <div>
+              <h3 className="font-bold">Outreach Workspace</h3>
+              <p className="text-sm text-gray-600">
+                {outreachWorkspaceBusiness.name}{' '}
+                {outreachWorkspaceBusiness.branches?.[0]?.city
+                  ? `(${outreachWorkspaceBusiness.branches[0].city})`
+                  : ''}
+              </p>
+            </div>
+            <button
+              onClick={closeOutreachWorkspace}
+              className="border rounded px-3 py-2 bg-white hover:bg-gray-50"
+              type="button"
+            >
+              Close
+            </button>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div>
+              <div className="font-medium mb-3">New Outreach Entry</div>
+              {outreachFormBusiness?.id === outreachWorkspaceBusiness.id ? (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm text-gray-600 mb-1">Channel</label>
+                      <select
+                        value={outreachChannel}
+                        onChange={(e) => setOutreachChannel(e.target.value as BusinessOutreachChannel)}
+                        className="border rounded p-2 w-full bg-white"
+                      >
+                        <option value="phone">Phone</option>
+                        <option value="whatsapp">WhatsApp</option>
+                        <option value="in_person">In-person</option>
+                        <option value="email">Email</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-600 mb-1">Outcome</label>
+                      <select
+                        value={outreachOutcome}
+                        onChange={(e) => setOutreachOutcome(e.target.value as BusinessOutreachOutcome)}
+                        className="border rounded p-2 w-full bg-white"
+                      >
+                        <option value="attempted">Attempted</option>
+                        <option value="contacted">Contacted</option>
+                        <option value="interested">Interested</option>
+                        <option value="not_interested">Not Interested</option>
+                        <option value="follow_up">Follow Up</option>
+                        <option value="claimed">Claimed</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-600 mb-1">Next Follow-up</label>
+                      <input
+                        value={outreachNextFollowUpAt}
+                        onChange={(e) => setOutreachNextFollowUpAt(e.target.value)}
+                        className="border rounded p-2 w-full"
+                        type="datetime-local"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm text-gray-600 mb-1">Note</label>
+                      <textarea
+                        value={outreachNote}
+                        onChange={(e) => setOutreachNote(e.target.value)}
+                        className="border rounded p-2 w-full min-h-[100px]"
+                        placeholder="Add context, contact result, or next step"
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      onClick={submitOutreach}
+                      className="px-3 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                      disabled={outreachBusinessId === outreachWorkspaceBusiness.id}
+                      type="button"
+                    >
+                      {outreachBusinessId === outreachWorkspaceBusiness.id ? 'Saving...' : 'Save Outreach'}
+                    </button>
+                    <button
+                      onClick={() => openOutreachEditor(outreachWorkspaceBusiness)}
+                      className="border rounded px-3 py-2 bg-white hover:bg-gray-50"
+                      disabled={outreachBusinessId === outreachWorkspaceBusiness.id}
+                      type="button"
+                    >
+                      Reset
+                    </button>
+                  </div>
+                </>
+              ) : canTrackOutreach(outreachWorkspaceBusiness) ? (
+                <div className="rounded border border-dashed border-gray-300 p-4 text-sm text-gray-600">
+                  <div className="mb-3">Open the editor to log a new follow-up for this business.</div>
+                  <button
+                    onClick={() => openOutreachEditor(outreachWorkspaceBusiness)}
+                    className="px-3 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
+                    type="button"
+                  >
+                    Start New Outreach
+                  </button>
+                </div>
+              ) : (
+                <div className="text-sm text-gray-500">
+                  Outreach logging is only available for unclaimed businesses.
+                </div>
+              )}
+            </div>
+
+            <div>
+              <div className="font-medium mb-3">History</div>
+              {historyError ? (
+                <div className="p-3 mb-3 bg-red-50 text-red-700 border border-red-200 rounded">
+                  {historyError}
+                </div>
+              ) : null}
+              {historyLoading && historyBusiness?.id === outreachWorkspaceBusiness.id ? (
+                <div className="text-sm text-gray-500">Loading outreach history...</div>
+              ) : historyBusiness?.id === outreachWorkspaceBusiness.id && historyLogs.length > 0 ? (
+                <div className="space-y-3">
+                  {historyLogs.map((log) => {
+                    const details = describeOutreachLog(log);
+                    return (
+                      <div key={log.id} className="rounded border border-gray-200 p-3 text-sm">
+                        <div className="font-medium text-gray-800">
+                          {log.toState} via {details.channel}
+                        </div>
+                        <div className="text-gray-600">
+                          {formatDate(log.createdAt)} {log.changedByUser?.fullName ? `• ${log.changedByUser.fullName}` : ''}
+                        </div>
+                        {details.nextFollowUpAt ? (
+                          <div className="text-gray-600">
+                            Next follow-up: {formatDate(details.nextFollowUpAt)}
+                          </div>
+                        ) : null}
+                        {details.note ? (
+                          <div className="text-gray-600">Note: {details.note}</div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-sm text-gray-500">No outreach history found.</div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <div className="bg-white rounded shadow overflow-x-auto">
         <div className="flex gap-3 p-4 border-b bg-gray-50">
           <select value={status} onChange={(e) => setStatus(e.target.value as any)} className="border rounded p-2 bg-white">
@@ -260,6 +602,16 @@ const Businesses: React.FC = () => {
             <option value="api">API Import</option>
             <option value="partner">Partner Import</option>
             <option value="other">Other Import</option>
+          </select>
+          <select
+            value={followUpFilter}
+            onChange={(e) => setFollowUpFilter(e.target.value as any)}
+            className="border rounded p-2 bg-white"
+          >
+            <option value="all">All Follow-up</option>
+            <option value="due">Follow-up Due</option>
+            <option value="upcoming">Follow-up Upcoming</option>
+            <option value="none">No Follow-up</option>
           </select>
           <input
             value={batchInput}
@@ -296,6 +648,7 @@ const Businesses: React.FC = () => {
               <th className="p-3">Claim</th>
               <th className="p-3">Owner</th>
               <th className="p-3">Source</th>
+              <th className="p-3">Outreach</th>
               <th className="p-3">Actions</th>
               <th className="p-3">ID</th>
             </tr>
@@ -350,24 +703,105 @@ const Businesses: React.FC = () => {
                   })()}
                 </td>
                 <td className="p-3">
-                  {b.status === 'pending' ? (
+                  {canTrackOutreach(b) ? (
+                    <div className="text-xs">
+                      {b.latestOutreach ? (
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap gap-1">
+                            {getOutreachChips(b).map((chip) => (
+                              <span
+                                key={chip.label}
+                                className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${chip.className}`}
+                              >
+                                {chip.label}
+                              </span>
+                            ))}
+                          </div>
+                          <div className="font-medium text-gray-800">
+                            {b.latestOutreach.outcome} via {b.latestOutreach.channel}
+                          </div>
+                          <div className="text-gray-600">
+                            Last contact: {formatDate(b.latestOutreach.createdAt)}
+                          </div>
+                          {b.latestOutreach.nextFollowUpAt ? (
+                            <div className="text-gray-600">
+                              Next follow-up: {formatDate(b.latestOutreach.nextFollowUpAt)}
+                            </div>
+                          ) : null}
+                          {b.latestOutreach.changedByUser?.fullName ? (
+                            <div className="text-gray-600">
+                              By: {b.latestOutreach.changedByUser.fullName}
+                            </div>
+                          ) : null}
+                          {b.latestOutreach.note ? (
+                            <div className="text-gray-600">Note: {b.latestOutreach.note}</div>
+                          ) : null}
+                          <div className="text-gray-500">
+                            {b.outreachCount ?? 0} outreach entr
+                            {(b.outreachCount ?? 0) === 1 ? 'y' : 'ies'}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap gap-1">
+                            {getOutreachChips(b).map((chip) => (
+                              <span
+                                key={chip.label}
+                                className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${chip.className}`}
+                              >
+                                {chip.label}
+                              </span>
+                            ))}
+                          </div>
+                          <span className="text-gray-500">No outreach logged</span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-gray-500">—</span>
+                  )}
+                </td>
+                <td className="p-3">
+                  {b.status === 'pending' || canTrackOutreach(b) ? (
                     <div className="flex flex-col gap-2">
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => approve(b.id)}
-                          className="px-3 py-1 rounded bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
-                          disabled={actingBusinessId === b.id}
-                        >
-                          {actingBusinessId === b.id ? 'Saving...' : 'Approve'}
-                        </button>
-                        <button
-                          onClick={() => reject(b.id)}
-                          className="px-3 py-1 rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
-                          disabled={actingBusinessId === b.id}
-                        >
-                          {actingBusinessId === b.id ? 'Saving...' : 'Reject'}
-                        </button>
-                      </div>
+                      {b.status === 'pending' ? (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => approve(b.id)}
+                            className="px-3 py-1 rounded bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+                            disabled={actingBusinessId === b.id}
+                          >
+                            {actingBusinessId === b.id ? 'Saving...' : 'Approve'}
+                          </button>
+                          <button
+                            onClick={() => reject(b.id)}
+                            className="px-3 py-1 rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                            disabled={actingBusinessId === b.id}
+                          >
+                            {actingBusinessId === b.id ? 'Saving...' : 'Reject'}
+                          </button>
+                        </div>
+                      ) : null}
+                      {canTrackOutreach(b) ? (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => startOutreachForm(b)}
+                            className="px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                            disabled={outreachBusinessId === b.id}
+                            type="button"
+                          >
+                            {outreachBusinessId === b.id ? 'Saving...' : 'Log outreach'}
+                          </button>
+                          <button
+                            onClick={() => loadOutreachHistory(b)}
+                            className="px-3 py-1 rounded border bg-white hover:bg-gray-50 disabled:opacity-50"
+                            disabled={historyLoading && historyBusiness?.id === b.id}
+                            type="button"
+                          >
+                            {historyLoading && historyBusiness?.id === b.id ? 'Loading...' : 'View history'}
+                          </button>
+                        </div>
+                      ) : null}
                       {b.possibleDuplicates && b.possibleDuplicates.length > 0 ? (
                         <div className="flex flex-col gap-2 rounded border border-amber-200 bg-amber-50 p-2">
                           {b.possibleDuplicates.map((duplicate) => (
@@ -402,14 +836,14 @@ const Businesses: React.FC = () => {
             ))}
             {filtered.length === 0 && !loading ? (
               <tr>
-                <td className="p-4 text-gray-500" colSpan={9}>
+                <td className="p-4 text-gray-500" colSpan={10}>
                   No businesses found.
                 </td>
               </tr>
             ) : null}
             {loading ? (
               <tr>
-                <td className="p-4 text-gray-500" colSpan={9}>
+                <td className="p-4 text-gray-500" colSpan={10}>
                   Loading...
                 </td>
               </tr>

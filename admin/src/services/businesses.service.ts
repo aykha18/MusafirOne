@@ -9,6 +9,21 @@ export type BusinessClaimStatus =
   | 'claimed'
   | 'claim_rejected';
 
+export type BusinessOutreachChannel =
+  | 'phone'
+  | 'whatsapp'
+  | 'in_person'
+  | 'email'
+  | 'other';
+
+export type BusinessOutreachOutcome =
+  | 'attempted'
+  | 'contacted'
+  | 'interested'
+  | 'not_interested'
+  | 'follow_up'
+  | 'claimed';
+
 export type AdminBusiness = {
   id: string;
   ownerUserId?: string | null;
@@ -39,6 +54,19 @@ export type AdminBusiness = {
     address?: string | null;
     reasons: string[];
   }>;
+  outreachCount?: number;
+  latestOutreach?: {
+    channel: BusinessOutreachChannel;
+    outcome: BusinessOutreachOutcome;
+    note?: string | null;
+    nextFollowUpAt?: string | null;
+    createdAt: string;
+    changedByUser?: {
+      id: string;
+      fullName: string;
+      phoneNumber: string;
+    } | null;
+  } | null;
 };
 
 export const businessesService = {
@@ -72,6 +100,18 @@ export const businessesService = {
       `/admin/businesses/${businessId}/claim-code`,
       {},
     );
+    return response.data;
+  },
+  logOutreach: async (
+    businessId: string,
+    payload: {
+      channel: BusinessOutreachChannel;
+      outcome: BusinessOutreachOutcome;
+      note?: string;
+      nextFollowUpAt?: string;
+    },
+  ) => {
+    const response = await api.post(`/admin/businesses/${businessId}/outreach`, payload);
     return response.data;
   },
 };

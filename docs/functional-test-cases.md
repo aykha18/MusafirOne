@@ -1339,6 +1339,53 @@ Covered in `VDOC-04` to `VDOC-07`
 - Merge form is prefilled with target and source IDs
 - Admin can proceed to merge with fewer manual steps
 
+## ADM-18 — Outreach Tracking for Unclaimed Businesses
+
+**Preconditions**
+- At least one active or pending business is still unclaimed
+- Admin user has access to Businesses
+
+**Steps**
+1. Open Businesses
+2. Find an unclaimed business without an owner
+3. Review the Outreach column
+4. Click Log outreach
+5. Enter a valid channel and outcome
+6. Optionally enter note and next follow-up datetime
+7. Save and refresh the list if needed
+
+**Expected**
+- Outreach entry is saved successfully
+- Outreach column shows urgency/status chips such as Never Contacted, Follow-up Due, Follow-up Upcoming, or No Follow-up when applicable
+- Outreach column shows latest outcome, channel, last contact time, and total outreach count
+- Next follow-up is shown when provided
+- Claimed or owner-linked businesses do not show outreach logging controls
+
+## ADM-19 — Outreach Follow-up Filter and History
+
+**Preconditions**
+- At least one unclaimed business has a due or upcoming outreach follow-up
+- At least one outreach log exists for a business
+
+**Steps**
+1. Open Businesses
+2. Change the follow-up filter between All Follow-up, Follow-up Due, Follow-up Upcoming, and No Follow-up
+3. Confirm the table result count changes appropriately
+4. Click View history on a business with outreach activity
+5. Confirm the outreach workspace opens
+6. Review the outreach history section
+7. Optionally start a new outreach entry from the same workspace
+8. Close the workspace
+
+**Expected**
+- Follow-up filter narrows the table based on the latest scheduled outreach follow-up
+- Businesses with no next follow-up appear under No Follow-up
+- Outreach workspace loads for the selected business
+- History section loads outreach entries for the selected business
+- Each history entry shows outcome, channel, timestamp, and optional note/follow-up
+- Admin can log a new outreach update without leaving the same workspace
+- Closing the workspace returns focus to the Businesses table
+
 ---
 
 # 9) Chat
@@ -1409,6 +1456,6 @@ Run these quickly after each build:
 - `CLM-01` or `CLM-05` + `CLM-06` (start claim and verify My Claims visibility)
 - `CLM-09` (submit missing business request)
 - `RPT-01` (report listing)
-- `ADM-05` + `ADM-09` + `ADM-11` + `ADM-16` (claims, reports, businesses admin pages)
+- `ADM-05` + `ADM-09` + `ADM-11` + `ADM-16` + `ADM-18` + `ADM-19` (claims, reports, businesses admin pages)
 - `CHAT-02` + `CHAT-03` (auto-scroll and composer visibility)
 - `VDOC-01` + `VDOC-05` (upload and approve verification document)

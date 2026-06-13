@@ -90,12 +90,13 @@ export default function BusinessIndexScreen() {
       <ThemedView style={{ gap: 12 }}>
         <ThemedText type="title">Business Dashboard</ThemedText>
         <ThemedText style={{ opacity: 0.75 }}>
-          Register your exchange/Umrah agency and manage offers and leads.
+          Manage your claimed businesses, or submit a missing exchange/Umrah agency for
+          admin review.
         </ThemedText>
 
         <View style={{ flexDirection: 'row', gap: 10 }}>
           <ThemedButton
-            title={creating ? 'Close' : 'Register Business'}
+            title={creating ? 'Close' : 'Register Missing Business'}
             onPress={() => setCreating((v) => !v)}
             fullWidth
           />
@@ -103,7 +104,11 @@ export default function BusinessIndexScreen() {
 
         {creating ? (
           <AppCard style={{ padding: 14, gap: 10 }}>
-            <ThemedText type="defaultSemiBold">New Business</ThemedText>
+            <ThemedText type="defaultSemiBold">Missing Business Request</ThemedText>
+            <ThemedText style={{ opacity: 0.75 }}>
+              If the business already exists in the directory, claim it instead of creating a
+              new request.
+            </ThemedText>
             <SegmentedControl
               value={type}
               options={[
@@ -149,7 +154,8 @@ export default function BusinessIndexScreen() {
           ))}
           {items.length === 0 && !busy ? (
             <ThemedText style={{ opacity: 0.75 }}>
-              No businesses yet. Register one to get started.
+              No businesses yet. Claim an existing listing or submit a missing business for
+              review.
             </ThemedText>
           ) : null}
         </ThemedView>

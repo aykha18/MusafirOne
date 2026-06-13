@@ -148,8 +148,13 @@ export class AdminBusinessesController {
   constructor(private readonly exchangesService: ExchangesService) {}
 
   @Get()
-  list(@Query('status') status?: string, @Query('type') type?: string) {
-    return this.exchangesService.adminListBusinesses(status, type);
+  list(
+    @Query('status') status?: string,
+    @Query('type') type?: string,
+    @Query('sourceType') sourceType?: string,
+    @Query('importBatchId') importBatchId?: string,
+  ) {
+    return this.exchangesService.adminListBusinesses(status, type, sourceType, importBatchId);
   }
 
   @Post(':id/approve')

@@ -143,6 +143,80 @@ export class ExchangesService {
     return n;
   }
 
+  private normalizeBusinessText(value?: string | null) {
+    if (!value) return '';
+    return value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim()
+      .replace(/\s+/g, ' ');
+  }
+
+  private normalizePhoneish(value?: string | null) {
+    if (!value) return '';
+    return value.replace(/\D+/g, '');
+  }
+
+  private getNormalizedBusinessCities(
+    branches?: Array<{ city: string; isActive: boolean } | null> | null,
+  ) {
+    const cities = new Set<string>();
+    for (const branch of branches ?? []) {
+      if (!branch?.isActive) continue;
+      const normalized = this.normalizeBusinessText(branch.city);
+      if (normalized) cities.add(normalized);
+    }
+    return Array.from(cities);
+  }
+
+  private getBusinessDuplicateReasons(
+    source: {
+      name: string;
+      phone?: string | null;
+      whatsapp?: string | null;
+      branches?: Array<{ city: string; isActive: boolean } | null> | null;
+    },
+    candidate: {
+      name: string;
+      phone?: string | null;
+      whatsapp?: string | null;
+      branches?: Array<{ city: string; isActive: boolean } | null> | null;
+    },
+  ) {
+    const reasons: string[] = [];
+    const sourceCities = this.getNormalizedBusinessCities(source.branches);
+    const candidateCities = this.getNormalizedBusinessCities(candidate.branches);
+    const sameCity =
+      sourceCities.length > 0 && sourceCities.some((city) => candidateCities.includes(city));
+
+    const sourceName = this.normalizeBusinessText(source.name);
+    const candidateName = this.normalizeBusinessText(candidate.name);
+    if (sameCity && sourceName.length >= 3 && sourceName === candidateName) {
+      reasons.push('same name in same city');
+    }
+
+    const sourcePhone = this.normalizePhoneish(source.phone);
+    const sourceWhatsapp = this.normalizePhoneish(source.whatsapp);
+    const candidatePhone = this.normalizePhoneish(candidate.phone);
+    const candidateWhatsapp = this.normalizePhoneish(candidate.whatsapp);
+
+    if (
+      sourcePhone.length >= 7 &&
+      (sourcePhone === candidatePhone || sourcePhone === candidateWhatsapp)
+    ) {
+      reasons.push('same phone');
+    }
+
+    if (
+      sourceWhatsapp.length >= 7 &&
+      (sourceWhatsapp === candidatePhone || sourceWhatsapp === candidateWhatsapp)
+    ) {
+      reasons.push('same WhatsApp');
+    }
+
+    return reasons;
+  }
+
   private haversineDistanceKm(
     a: { lat: number; lng: number },
     b: { lat: number; lng: number },
@@ -1570,6 +1644,79 @@ export class ExchangesService {
       throw new BadRequestException('Too many pending businesses');
     }
 
+    const trimmedName = dto.name.trim();
+    const trimmedCity = dto.branchCity.trim();
+    const trimmedAddress = dto.branchAddress.trim();
+    const trimmedDescription = dto.description?.trim() ? dto.description.trim() : null;
+    const trimmedPhone = dto.phone?.trim() ? dto.phone.trim() : null;
+    const trimmedWhatsapp = dto.whatsapp?.trim() ? dto.whatsapp.trim() : null;
+    const trimmedWebsite = dto.website?.trim() ? dto.website.trim() : null;
+    const trimmedTimeZone = dto.branchTimeZone?.trim() ? dto.branchTimeZone.trim() : null;
+    const trimmedHoursJson = dto.branchHoursJson?.trim() ? dto.branchHoursJson.trim() : null;
+
+    const candidateDuplicates = await this.prisma.business.findMany({
+      where: {
+        type: dto.type as any,
+        status: {
+          in: ['active', 'pending'],
+        },
+        branches: {
+          some: {
+            isActive: true,
+            city: {
+              equals: trimmedCity,
+              mode: 'insensitive',
+            },
+          },
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        whatsapp: true,
+        branches: {
+          where: {
+            isActive: true,
+            city: {
+              equals: trimmedCity,
+              mode: 'insensitive',
+            },
+          },
+          select: {
+            city: true,
+          },
+          take: 3,
+        },
+      },
+      take: 100,
+    });
+
+    const normalizedName = this.normalizeBusinessText(trimmedName);
+    const normalizedPhone = this.normalizePhoneish(trimmedPhone);
+    const normalizedWhatsapp = this.normalizePhoneish(trimmedWhatsapp);
+
+    const duplicate = candidateDuplicates.find((business) => {
+      const sameName =
+        normalizedName.length >= 3 &&
+        this.normalizeBusinessText(business.name) === normalizedName;
+      const samePhone =
+        normalizedPhone.length >= 7 &&
+        (this.normalizePhoneish(business.phone) === normalizedPhone ||
+          this.normalizePhoneish(business.whatsapp) === normalizedPhone);
+      const sameWhatsapp =
+        normalizedWhatsapp.length >= 7 &&
+        (this.normalizePhoneish(business.phone) === normalizedWhatsapp ||
+          this.normalizePhoneish(business.whatsapp) === normalizedWhatsapp);
+      return sameName || samePhone || sameWhatsapp;
+    });
+
+    if (duplicate) {
+      throw new BadRequestException(
+        'A similar business is already listed in this city. Please search the directory and claim it instead of submitting a new one.',
+      );
+    }
+
     const now = new Date();
     const trialEndsAt =
       dto.type === 'umrah'
@@ -1589,24 +1736,22 @@ export class ExchangesService {
       data: {
         ownerUserId: userId,
         type: dto.type as any,
-        name: dto.name.trim(),
-        description: dto.description?.trim() ? dto.description.trim() : null,
-        phone: dto.phone?.trim() ? dto.phone.trim() : null,
-        whatsapp: dto.whatsapp?.trim() ? dto.whatsapp.trim() : null,
-        website: dto.website?.trim() ? dto.website.trim() : null,
+        name: trimmedName,
+        description: trimmedDescription,
+        phone: trimmedPhone,
+        whatsapp: trimmedWhatsapp,
+        website: trimmedWebsite,
         status: 'pending',
         isVerified: false,
         trialEndsAt,
         branches: {
           create: {
-            city: dto.branchCity.trim(),
-            address: dto.branchAddress.trim(),
+            city: trimmedCity,
+            address: trimmedAddress,
             lat: typeof dto.branchLat === 'number' ? dto.branchLat : null,
             lng: typeof dto.branchLng === 'number' ? dto.branchLng : null,
-            timeZone: dto.branchTimeZone?.trim() ? dto.branchTimeZone.trim() : null,
-            hoursJson: dto.branchHoursJson?.trim()
-              ? dto.branchHoursJson.trim()
-              : null,
+            timeZone: trimmedTimeZone,
+            hoursJson: trimmedHoursJson,
             isActive: true,
           },
         },
@@ -1979,16 +2124,69 @@ export class ExchangesService {
     return { ok: true as const };
   }
 
-  async adminListBusinesses(status?: string, type?: string) {
-    return this.prisma.business.findMany({
+  async adminListBusinesses(
+    status?: string,
+    type?: string,
+    sourceType?: string,
+    importBatchId?: string,
+  ) {
+    const trimmedBatchId = importBatchId?.trim();
+    const businesses = await this.prisma.business.findMany({
       where: {
         ...(status ? { status: status as any } : undefined),
         ...(type ? { type: type as any } : undefined),
+        ...(sourceType
+          ? sourceType === 'owner'
+            ? { sourceType: null }
+            : { sourceType: sourceType as any }
+          : undefined),
+        ...(trimmedBatchId ? { importBatchId: trimmedBatchId } : undefined),
       },
       orderBy: [{ createdAt: 'desc' }],
       include: {
         branches: { take: 5 },
       },
+    });
+
+    return businesses.map((business) => {
+      const possibleDuplicates =
+        business.status !== 'pending'
+          ? []
+          : businesses
+              .filter(
+                (candidate) =>
+                  candidate.id !== business.id &&
+                  candidate.type === business.type &&
+                  candidate.status !== 'rejected',
+              )
+              .map((candidate) => {
+                const reasons = this.getBusinessDuplicateReasons(business, candidate);
+                if (reasons.length === 0) return null;
+                const primaryBranch =
+                  candidate.branches.find((branch) => branch.isActive) ?? candidate.branches[0] ?? null;
+                return {
+                  id: candidate.id,
+                  name: candidate.name,
+                  status: candidate.status,
+                  claimStatus: candidate.claimStatus,
+                  city: primaryBranch?.city ?? null,
+                  address: primaryBranch?.address ?? null,
+                  reasons,
+                };
+              })
+              .filter((candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate))
+              .sort((a, b) => {
+                if (a.status !== b.status) {
+                  return a.status === 'active' ? -1 : 1;
+                }
+                return a.name.localeCompare(b.name);
+              })
+              .slice(0, 3);
+
+      return {
+        ...business,
+        possibleDuplicates,
+      };
     });
   }
 

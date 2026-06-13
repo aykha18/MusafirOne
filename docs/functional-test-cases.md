@@ -1,33 +1,42 @@
-# MusafirOne — Functional Test Cases
+# MusafirOne — Manual Testing Guide
 
 ## Scope
 
-This document lists functional test cases for the MusafirOne mobile app and admin flows:
+This document lists manual test cases for the current MusafirOne mobile app and admin flows:
 
 - Authentication (OTP, Google)
 - Profile (edit City/Corridor, phone verification)
 - Verification (Level 2 document submission + admin review)
 - Currency Exchange (posts, matches, chat, disputes, ratings, edit)
 - Parcel Delivery (trips, requests, matching, chat, disputes, ratings, edit)
-- Chat (basic messaging + visibility)
-- Explore (feature voting board)
-- Admin (Users, Disputes, Documents)
+- Business Directory (Exchange + Umrah)
+- Business Claiming (OTP, docs, in-person code, My Claims)
+- Umrah inquiries / leads
+- Listing reports / takedowns
+- Chat (basic messaging + visibility + composer behavior)
+- Explore (feature voting board, accessed from Profile)
+- Admin (Users, Disputes, Documents, Claims, Reports, Businesses)
 
 ## Environments
 
 - Mobile app build: Android APK (Release recommended)
+- Admin web app: reachable admin URL in Chrome/Edge
 - Backend: reachable API base URL (prod/staging/local)
 
 ## Test Accounts / Roles
 
 - User A: normal user (not admin)
 - User B: normal user (not admin)
+- User C: optional third user for capacity / duplicate interaction tests
 - Admin: user with `isAdmin = true`
+- Seeded business owner account: optional, for testing owner inbox / claimed business editing
 
 ## Conventions
 
 - Unless specified, expected behavior should work in both light and dark mode.
 - “Success” implies a visible confirmation and the UI reflects updated state after refresh.
+- Where OTP is needed in test/staging, testers must have access to the OTP code source or mock delivery channel.
+- For manual runs, record actual result, pass/fail, build number, tester name, and screenshot/video for failed cases.
 
 ---
 
@@ -251,7 +260,8 @@ This document lists functional test cases for the MusafirOne mobile app and admi
 - Logged in
 
 **Steps**
-1. Open Explore tab
+1. Open Profile
+2. Tap Explore / Feature Board
 
 **Expected**
 - List shows feature ideas with short descriptions and vote counts
@@ -830,86 +840,575 @@ This document lists functional test cases for the MusafirOne mobile app and admi
 
 ---
 
-# 7) Admin Dashboard
+# 7) Business Directory, Claims, and Umrah
 
-## ADM-01 — Admin Login
+## DIR-01 — Browse Exchange Directory by City
+
+**Preconditions**
+- At least one exchange business exists in the directory
+
+**Steps**
+1. Open the Exchange directory/browse screen
+2. Select a city filter
+3. Clear the filter
+
+**Expected**
+- Only exchange businesses for the selected city are shown
+- Clearing the filter restores the broader list
+- Empty state renders correctly when no businesses match
+
+## DIR-02 — Browse Umrah Directory by City
+
+**Preconditions**
+- At least one Umrah business exists in the directory
+
+**Steps**
+1. Open the Umrah tab
+2. Select a city
+3. Open at least one listing
+
+**Expected**
+- Umrah list loads without layout issues
+- Listing cards show claim/trust badges when available
+- Detail screen opens correctly
+
+## DIR-03 — Directory Business Detail
+
+**Steps**
+1. Open any directory business detail
+
+**Expected**
+- Name, city, phone/WhatsApp, type, and badge/trust state are shown when available
+- Claim / Inquiry / Report actions appear as applicable
+
+## UML-01 — Submit Umrah Inquiry
+
+**Preconditions**
+- Logged in as a normal user
+- Active Umrah business exists
+
+**Steps**
+1. Open a Umrah business
+2. Tap Inquiry
+3. Enter a message
+4. Submit
+
+**Expected**
+- Inquiry is created successfully
+- Success feedback is shown
+
+## UML-02 — Owner Views Umrah Leads Inbox
+
+**Preconditions**
+- UML-01 completed
+- Business is claimed by an owner user
+
+**Steps**
+1. Log in as the business owner
+2. Open Business Dashboard for that business
+3. Open Leads
+
+**Expected**
+- Submitted inquiry appears in the leads list
+- Sender identity/message is visible
+
+## CLM-01 — Claim Business via Phone OTP
+
+**Preconditions**
+- Logged in
+- Business is `unclaimed` or `claim_rejected`
+- Business has a phone or WhatsApp number
+
+**Steps**
+1. Open the business claim screen
+2. Keep Phone OTP selected
+3. Confirm the phone number
+4. Tap Send OTP
+5. Enter valid OTP
+6. Tap Verify & Claim
+
+**Expected**
+- OTP send succeeds
+- Verification succeeds
+- Business becomes claimed / assigned to the user
+- User is redirected back to the business context
+
+## CLM-02 — Claim Business via Invalid OTP
+
+**Preconditions**
+- CLM-01 started and OTP input is visible
+
+**Steps**
+1. Enter an invalid OTP
+2. Tap Verify & Claim
+
+**Expected**
+- Verification fails with a clear error
+- Claim remains pending or unapproved
+- User can retry with another code
+
+## CLM-03 — Resend Claim OTP
+
+**Preconditions**
+- Existing pending phone OTP claim
+
+**Steps**
+1. Open the claim screen again
+2. Tap Resend OTP
+
+**Expected**
+- New OTP is requested successfully
+- No duplicate claim record is created
+
+## CLM-04 — Claim Business via In-person Code
+
+**Preconditions**
+- Admin has generated a valid in-person claim code
+- Logged in as a normal user
+
+**Steps**
+1. Open claim screen
+2. Select In-person code
+3. Enter the valid code
+4. Tap Verify Code & Claim
+
+**Expected**
+- Code verifies successfully
+- Business becomes claimed by the user
+- Reusing the same code is blocked after consumption
+
+## CLM-05 — Claim Business via Docs Upload
+
+**Preconditions**
+- Logged in
+- Claimable business exists
+
+**Steps**
+1. Open claim screen
+2. Select Docs
+3. Tap Upload Document
+4. Choose a valid document
+5. Tap Submit for Review
+
+**Expected**
+- File upload succeeds
+- Uploaded count increments
+- Claim enters pending manual review
+
+## CLM-06 — My Claims List
+
+**Preconditions**
+- User has created at least one claim
+
+**Steps**
+1. Open Profile
+2. Tap My Claims
+
+**Expected**
+- Claims list shows business name, status, method, and created time
+- Opening a claimable business returns to the detailed claim screen
+
+## CLM-07 — Claim Progress Display
+
+**Preconditions**
+- User has a pending, approved, or rejected claim
+
+**Steps**
+1. Open the business claim screen
+
+**Expected**
+- The progress card reflects the latest claim state
+- “Your claim” summary matches the backend status
+- Docs uploads count is shown for docs claims
+
+## CLM-08 — Anti-abuse: Too Many Pending Claims
+
+**Preconditions**
+- User has already reached the pending claims limit
+
+**Steps**
+1. Attempt to create another claim
+
+**Expected**
+- Backend rejects the new claim
+- User sees a clear limit/cooldown message
+
+## CLM-09 — Submit Missing Business Request
+
+**Preconditions**
+- Logged in
+- The business is not already present in the directory
+
+**Steps**
+1. Open Business Dashboard
+2. Tap Register Missing Business
+3. Enter type, name, and branch details
+4. Submit for approval
+
+**Expected**
+- Request is created successfully
+- New business appears in My Businesses
+- New business status is pending
+- User is informed that admin review is required
+
+## CLM-10 — Prevent Duplicate Missing Business Submission
+
+**Preconditions**
+- A matching business already exists in the same city and category
+
+**Steps**
+1. Open Business Dashboard
+2. Tap Register Missing Business
+3. Enter a matching business name and/or same phone or WhatsApp number
+4. Submit for approval
+
+**Expected**
+- Backend rejects the submission
+- User sees guidance to claim the existing listing instead
+- No duplicate pending business is created
+
+## RPT-01 — Report Directory Listing
+
+**Preconditions**
+- Logged in
+- Directory business detail is open
+
+**Steps**
+1. Tap Report listing
+2. Enter a reason and optional details
+3. Submit
+
+**Expected**
+- Report is created successfully
+- User sees confirmation
+
+---
+
+# 8) Admin Dashboard
+
+## ADM-01 — Admin Login and Navigation
 
 **Preconditions**
 - Admin user exists and can log in
 
 **Steps**
 1. Log in as admin
-2. Open Admin dashboard
+2. Open the admin app
+3. Verify the left navigation
 
 **Expected**
-- Tabs: Users, Disputes, Documents
+- Login succeeds
+- Sidebar shows Dashboard, Users, Businesses, Disputes, System Logs, Claims, and Reports
+- Each route opens without a blank screen or crash
 
 ## ADM-02 — Suspend/Unsuspend User
 
 **Steps**
-1. Users tab
+1. Open Users
 2. Suspend a user
 3. Refresh
-4. Unsuspend same user
+4. Unsuspend the same user
 
 **Expected**
-- Suspension state updates
-- Suspended user cannot create new posts (currency/parcel) and gets clear errors
+- Suspension state updates immediately or after refresh
+- Suspended user cannot create new posts and sees a clear error
+- Unsuspended user regains access
 
-## ADM-03 — Disputes List + Resolve
+## ADM-03 — Disputes List and Resolve
 
 **Preconditions**
-- At least one dispute created by a user
+- At least one dispute exists
 
 **Steps**
-1. Disputes tab
-2. Resolve as valid
-3. Resolve another as invalid
+1. Open Disputes
+2. Resolve one dispute as valid
+3. Resolve another dispute as invalid
 
 **Expected**
-- Status changes reflected
-- If 3 valid disputes rule is in place, user auto-suspension triggers after threshold
+- Status changes are visible after the action
+- The resolved dispute no longer appears as unresolved
+- Any suspension automation tied to valid dispute thresholds works as configured
 
-## ADM-04 — Documents Review
+## ADM-04 — Verification Documents Review
 
-Covered in VDOC-04 to VDOC-07
+Covered in `VDOC-04` to `VDOC-07`
+
+## ADM-05 — Claims Queue Filter and Load
+
+**Preconditions**
+- At least one business claim exists
+
+**Steps**
+1. Open Claims
+2. Verify the default pending filter
+3. Switch between Pending, Approved, Rejected, and All
+4. Tap Refresh
+
+**Expected**
+- Claims list loads successfully
+- Filtered results match the selected status
+- Each row shows business, requester, method, docs count, status, and created time
+
+## ADM-06 — Approve Business Claim
+
+**Preconditions**
+- A pending business claim exists
+
+**Steps**
+1. Open Claims
+2. Find a pending claim
+3. Click Approve
+4. Confirm the action
+
+**Expected**
+- Claim status changes to approved
+- Business ownership is assigned to the requester
+- Business claim status updates to claimed in subsequent lists/details
+
+## ADM-07 — Reject Business Claim with Reason
+
+**Preconditions**
+- A pending business claim exists
+
+**Steps**
+1. Open Claims
+2. Find a pending claim
+3. Click Reject
+4. Enter an optional rejection reason
+5. Confirm the action
+
+**Expected**
+- Claim status changes to rejected
+- Rejection reason is stored
+- The requester sees the rejection state in My Claims / claim progress
+
+## ADM-08 — Download Claim Documents
+
+**Preconditions**
+- A docs-based claim exists with at least one uploaded file
+
+**Steps**
+1. Open Claims
+2. Locate a docs claim
+3. Click Download on each attached file
+
+**Expected**
+- Each file downloads successfully
+- Downloaded file names are correct
+- Downloaded files open and match the uploaded content
+
+## ADM-09 — Reports Queue Resolve
+
+**Preconditions**
+- At least one open business report exists
+
+**Steps**
+1. Open Reports
+2. Keep the filter on Open
+3. Click Resolve on a report
+4. Confirm the action
+
+**Expected**
+- Report status changes to resolved
+- The report disappears from the Open filter
+- The business remains unchanged when only Resolve is used
+
+## ADM-10 — Reject Listing from Reports
+
+**Preconditions**
+- At least one open business report exists for an active listing
+
+**Steps**
+1. Open Reports
+2. Click Reject listing on a report
+3. Confirm the action
+
+**Expected**
+- The related business is rejected
+- The report is resolved in the same workflow
+- Refreshing Reports and Businesses reflects the new state
+
+## ADM-11 — Businesses Filter by Status and Type
+
+**Preconditions**
+- Businesses exist across different statuses and types
+
+**Steps**
+1. Open Businesses
+2. Switch status between Active, Pending, Rejected, and All
+3. Switch type between All Types, Exchange, and Umrah
+4. Tap Refresh
+
+**Expected**
+- Filters update the table correctly
+- Result counts update correctly
+- Each row shows name, type, status, claim status, owner, and business ID
+
+## ADM-12 — Generate In-person Claim Code
+
+**Preconditions**
+- A claimable business exists
+
+**Steps**
+1. Open Businesses
+2. Enter the business ID in the In-person Claim Code section
+3. Click Generate Code
+4. Confirm the action
+
+**Expected**
+- A new code is generated successfully
+- The latest code is displayed
+- The code can be used by the mobile in-person claim flow
+
+## ADM-13 — Merge Duplicate Businesses
+
+**Preconditions**
+- Target and source businesses exist and are confirmed duplicates
+
+**Steps**
+1. Open Businesses
+2. Enter the target business ID
+3. Enter the source business ID
+4. Click Merge
+5. Confirm the action
+
+**Expected**
+- Merge completes successfully
+- Source listing is hidden/replaced by the target record
+- Related operational data is preserved under the target business
+
+## ADM-14 — System Logs Load
+
+**Steps**
+1. Open System Logs
+2. Refresh the page if needed
+
+**Expected**
+- Logs page loads without error
+- Recent entries are visible when logs exist
+
+## ADM-15 — Review Missing Business Submission
+
+**Preconditions**
+- A user has submitted a missing business request
+
+**Steps**
+1. Open Businesses
+2. Keep the status filter on Pending
+3. Find the newly submitted business
+4. Review the row details and location
+5. Click Approve or Reject
+
+**Expected**
+- Pending business request is visible in the review table
+- Admin can approve or reject directly from the row
+- Status changes are reflected after refresh/reload
+
+## ADM-16 — Businesses Filter by Source and Import Batch
+
+**Preconditions**
+- Businesses exist from at least two different sources or batches
+
+**Steps**
+1. Open Businesses
+2. Change Source filter between Owner Submitted, Manual Import, API Import, Partner Import, and Other Import
+3. Enter a valid import batch ID
+4. Click Apply Batch
+5. Click Clear Batch
+
+**Expected**
+- Source filter limits the list correctly
+- Batch filter returns only businesses from the requested batch
+- Clear Batch removes the batch restriction
+- Source column shows source name/type, batch, imported time, and last seen time where available
+
+## ADM-17 — Duplicate Suggestions and Prefill Merge
+
+**Preconditions**
+- A pending business request has one or more likely duplicates
+
+**Steps**
+1. Open Businesses
+2. Find a pending business with duplicate suggestions
+3. Review the suggested duplicate entries and reasons
+4. Click Prefill merge on one suggestion
+
+**Expected**
+- Duplicate suggestions are shown for the pending business
+- Each suggestion shows candidate identity and match reasons
+- Merge form is prefilled with target and source IDs
+- Admin can proceed to merge with fewer manual steps
 
 ---
 
-# 8) Chat
+# 9) Chat
 
 ## CHAT-01 — Basic Messaging
 
 **Steps**
-1. Create a conversation from Currency or Parcel
-2. Send messages both ways
+1. Create or open a conversation from Currency or Parcel
+2. Send messages from both participants
 
 **Expected**
-- Messages show immediately
-- Timestamp visible
+- Messages appear immediately
+- Timestamps are visible
+- New messages remain in chronological order
 
-## CHAT-02 — Dark Mode Visibility
+## CHAT-02 — Auto-scroll to Latest Message
+
+**Preconditions**
+- Conversation has enough messages to require scrolling
+
+**Steps**
+1. Open the conversation away from the latest message
+2. Tap the composer
+3. Send a new message
+
+**Expected**
+- The view scrolls toward the latest message, not upward into older history
+- Sending a message keeps the newest content visible
+
+## CHAT-03 — Composer Visibility with Keyboard
+
+**Steps**
+1. Open a conversation on Android and iPhone if available
+2. Tap the message composer
+3. Type a long message
+4. Dismiss and reopen the keyboard
+
+**Expected**
+- Composer remains visible above the keyboard
+- User can see what they are typing
+- No bottom navigation overlap covers the composer
+
+## CHAT-04 — Dark Mode Visibility
 
 **Steps**
 1. Enable dark mode
-2. Send message
+2. Open a conversation
+3. Send a message
 
 **Expected**
-- Outgoing message text is readable (no white-on-white)
+- Outgoing and incoming message text remain readable
+- Composer, placeholders, and timestamps remain visible
 
 ---
 
-# 9) Regression / Smoke Suite
+# 10) Regression / Smoke Suite
 
 Run these quickly after each build:
 
-- AUTH-02 (OTP login) or AUTH-04 (Google login)
-- PROF-02 (edit city/corridor)
-- EXP-02 (upvote)
-- CUR-01 + CUR-04 + CUR-05 (create post + request match + accept)
-- CUR-17 + CUR-18 (complete + rate)
-- PAR-10 + PAR-12 + PAR-13 (public browse trips + request traveler + traveler sees incoming)
-- PAR-14 + PAR-16 (accept + capacity enforcement)
-- CHAT-02 (dark mode message visibility)
-- VDOC-01 (upload doc) + VDOC-05 (admin approve)
-
+- `AUTH-02` (OTP login) or `AUTH-04` (Google login)
+- `PROF-02` (edit profile basics)
+- `EXP-02` (upvote from Explore / Feature Board)
+- `CUR-01` + `CUR-04` + `CUR-05` (create post, request match, accept)
+- `CUR-17` + `CUR-18` (complete exchange and rate)
+- `PAR-10` + `PAR-14` + `PAR-16` (browse trips, accept traveler, enforce capacity)
+- `DIR-01` or `DIR-02` (directory browse)
+- `UML-01` (submit Umrah inquiry)
+- `CLM-01` or `CLM-05` + `CLM-06` (start claim and verify My Claims visibility)
+- `CLM-09` (submit missing business request)
+- `RPT-01` (report listing)
+- `ADM-05` + `ADM-09` + `ADM-11` + `ADM-16` (claims, reports, businesses admin pages)
+- `CHAT-02` + `CHAT-03` (auto-scroll and composer visibility)
+- `VDOC-01` + `VDOC-05` (upload and approve verification document)
